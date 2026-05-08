@@ -66,8 +66,10 @@ export interface GenerateScriptResult {
   metadata: ApiMetadata;
 }
 
+const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
@@ -99,7 +101,7 @@ export const api = {
       }>(`/projects/${id}`),
 
     delete: (id: string) =>
-      fetch(`/api/projects/${id}`, { method: 'DELETE' }),
+      fetch(`${API_BASE}/projects/${id}`, { method: 'DELETE' }),
 
     uploadEndCard: (id: string, imageBase64: string, mimeType: string) =>
       request<{ url: string }>(`/projects/${id}/endcard`, {
@@ -143,7 +145,7 @@ export const api = {
   images: {
     // Streaming SSE via fetch — yields eventos por cena conforme geradas
     async *generateStream(projectId: string, visualStyle?: string): AsyncGenerator<ImageGenEvent> {
-      const res = await fetch(`/api/projects/${projectId}/images`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/images`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ visual_style: visualStyle }),
@@ -193,7 +195,7 @@ export const api = {
 
     // Abre SSE stream — retorna EventSource já conectado
     streamStatus: (projectId: string): EventSource =>
-      new EventSource(`/api/projects/${projectId}/render/status`),
+      new EventSource(`${API_BASE}/projects/${projectId}/render/status`),
   },
 
   topics: {
