@@ -1,4 +1,4 @@
-import { Home, Layers, Video, FolderHeart, Settings, User, Zap, X } from 'lucide-react';
+import { Home, Video, FolderHeart, Settings, User, Zap, X } from 'lucide-react';
 import { AppStep } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import React from 'react';
@@ -6,11 +6,12 @@ import React from 'react';
 interface SidebarProps {
   currentStep: AppStep;
   onNavigateHome: () => void;
+  onNavigateProjects: () => void;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export default function Sidebar({ currentStep, onNavigateHome, isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ currentStep, onNavigateHome, onNavigateProjects, isOpen, onClose }: SidebarProps) {
   const handleNav = (fn?: () => void) => {
     fn?.();
     onClose();
@@ -60,8 +61,7 @@ export default function Sidebar({ currentStep, onNavigateHome, isOpen, onClose }
 
         <nav className="flex-1 w-full px-4 space-y-2">
           <NavItem icon={<Home className="w-5 h-5" />} label="Dashboard" isActive={currentStep === AppStep.DASHBOARD} onClick={() => handleNav(onNavigateHome)} />
-          <NavItem icon={<Video className="w-5 h-5" />} label="Projetos" isActive={currentStep !== AppStep.DASHBOARD} />
-          <NavItem icon={<Layers className="w-5 h-5" />} label="Templates" isActive={false} />
+          <NavItem icon={<Video className="w-5 h-5" />} label="Projetos" isActive={currentStep === AppStep.PROJECTS} onClick={() => handleNav(onNavigateProjects)} />
           <NavItem icon={<FolderHeart className="w-5 h-5" />} label="Ideias Salvas" isActive={false} />
 
           <div className="pt-6 pb-2">

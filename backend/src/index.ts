@@ -16,6 +16,7 @@ import scriptsRouter from './routes/scripts.js';
 import narrationRouter from './routes/narration.js';
 import imagesRouter from './routes/images.js';
 import renderRouter from './routes/render.js';
+import foldersRouter from './routes/folders.js';
 import { listVoices } from './services/elevenlabs.service.js';
 
 const app = express();
@@ -68,6 +69,7 @@ app.post('/api/topics/suggestions', async (req, res) => {
   }
 });
 
+app.use('/api/folders', foldersRouter);
 app.use('/api/projects', projectsRouter);
 app.use('/api/projects/:projectId/script', scriptsRouter);
 app.use('/api/projects/:projectId/narration', narrationRouter);

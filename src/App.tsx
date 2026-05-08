@@ -4,6 +4,7 @@ import { AppStep, type ProjectContext } from './types';
 import type { ApiProject } from './lib/api';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
+import ProjectsView from './components/ProjectsView';
 import Step1Topic from './components/Step1Topic';
 import Step2Script from './components/Step2Script';
 import Step3Production from './components/Step3Production';
@@ -24,6 +25,11 @@ export default function App() {
   const goToDashboard = () => {
     setProject(null);
     setCurrentStep(AppStep.DASHBOARD);
+  };
+
+  const goToProjects = () => {
+    setProject(null);
+    setCurrentStep(AppStep.PROJECTS);
   };
 
   const handleTopicDone = (ctx: ProjectContext) => {
@@ -47,6 +53,7 @@ export default function App() {
       <Sidebar
         currentStep={currentStep}
         onNavigateHome={goToDashboard}
+        onNavigateProjects={goToProjects}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -89,6 +96,10 @@ export default function App() {
         <div className="max-w-7xl mx-auto p-4 sm:p-8 lg:p-12 min-h-full">
           {currentStep === AppStep.DASHBOARD && (
             <Dashboard onStartProject={startNewProject} onEditProject={handleEditProject} />
+          )}
+
+          {currentStep === AppStep.PROJECTS && (
+            <ProjectsView onStartProject={startNewProject} onEditProject={handleEditProject} />
           )}
 
           {currentStep === AppStep.TOPIC_SELECTION && (

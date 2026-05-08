@@ -52,6 +52,15 @@ export interface ApiProject {
   status: string;
   created_at: string;
   thumbnail_url?: string | null;
+  folder_id?: string | null;
+}
+
+export interface ApiFolder {
+  id: string;
+  name: string;
+  emoji: string;
+  color: string;
+  created_at: string;
 }
 
 export interface Voice {
@@ -83,7 +92,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   projects: {
-    list: () => request<ApiProject[]>('/projects'),
+    list: (folderId?: string | 'none') =>
+      request<ApiProject[]>(`/projects${folderId ? `?folder_id=${folderId}` : ''}`),
+
+    moveToFolder: (id: string, folderId: string | null) =>
+      request<ApiProject>(`/projects/${id}/folder`, {
+        method: 'PATCH',
+        body: JSON.stringify({ folder_id: folderId }),
+      }),
 
     create: (topic: string, niche?: string) =>
       request<ApiProject>('/projects', {
@@ -196,6 +212,22 @@ export const api = {
     // Abre SSE stream — retorna EventSource já conectado
     streamStatus: (projectId: string): EventSource =>
       new EventSource(`${API_BASE}/projects/${projectId}/render/status`),
+  },
+
+  folders: {
+    list: () => request<ApiFolder[]>('/folders'),
+    create: (name: string, emoji: string, color: string) =>
+      request<ApiFolder>('/folders', {
+        method: 'POST',
+        body: JSON.stringify({ name, emoji, color }),
+      }),
+    update: (id: string, updates: Partial<Pick<ApiFolder, 'name' | 'emoji' | 'color'>>) =>
+      request<ApiFolder>(`/folders/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+      }),
+    delete: (id: string) =>
+      fetch(`${API_BASE}/folders/${id}`, { method: 'DELETE' }),
   },
 
   topics: {

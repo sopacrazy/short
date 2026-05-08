@@ -6,12 +6,13 @@ import type { Project } from '../types/index.js';
 
 const router = Router();
 
-// GET /api/projects — listar todos os projetos com thumbnail da primeira cena
-router.get('/', async (_req, res) => {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-    .order('created_at', { ascending: false });
+// GET /api/projects — listar projetos (opcionalmente filtrado por folder_id)
+router.get('/', async (req, res) => {
+  const { folder_id } = req.query as { folder_id?: string };
+  let query = supabase.from('projects').select('*').order('created_at', { ascending: false });
+  if (folder_id === 'none') query = query.is('folder_id', null);
+  else if (folder_id) query = query.eq('folder_id', folder_id);
+  const { data, error } = await query;
 
   if (error) return res.status(500).json({ error: error.message });
   if (!data?.length) return res.json([]);
@@ -71,6 +72,20 @@ router.post('/', async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
   return res.status(201).json(data);
+});
+
+// PATCH /api/projects/:id/folder — mover projeto para uma pasta
+router.patch('/:id/folder', async (req, res) => {
+  const { id } = req.params;
+  const { folder_id } = req.body as { folder_id: string | null };
+  const { data, error } = await supabase
+    .from('projects')
+    .update({ folder_id: folder_id ?? null })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json(data);
 });
 
 // PATCH /api/projects/:id/status — atualizar status
