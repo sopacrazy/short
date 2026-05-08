@@ -1,6 +1,6 @@
 {
   "installCommand": "npm install --workspaces=false",
-  "buildCommand": "npx vite build",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite"
 }
