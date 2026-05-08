@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Menu } from 'lucide-react';
 import { AppStep, type ProjectContext } from './types';
 import type { ApiProject } from './lib/api';
+import type { FolderDefaults } from './types';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import ProjectsView from './components/ProjectsView';
@@ -17,8 +18,11 @@ export default function App() {
   const [project, setProject] = useState<ProjectContext | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const startNewProject = () => {
+  const [pendingFolderDefaults, setPendingFolderDefaults] = useState<FolderDefaults | null>(null);
+
+  const startNewProject = (defaults?: FolderDefaults) => {
     setProject(null);
+    setPendingFolderDefaults(defaults ?? null);
     setCurrentStep(AppStep.TOPIC_SELECTION);
   };
 
@@ -33,12 +37,14 @@ export default function App() {
   };
 
   const handleTopicDone = (ctx: ProjectContext) => {
-    setProject(ctx);
+    setProject({ ...ctx, ...pendingFolderDefaults ?? {} });
+    setPendingFolderDefaults(null);
     setCurrentStep(AppStep.SCRIPT_GENERATION);
   };
 
   const handleAutoGenerate = (ctx: ProjectContext) => {
-    setProject(ctx);
+    setProject({ ...ctx, ...pendingFolderDefaults ?? {} });
+    setPendingFolderDefaults(null);
     setCurrentStep(AppStep.AUTO_GENERATION);
   };
 

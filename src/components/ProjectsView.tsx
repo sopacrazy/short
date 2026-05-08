@@ -4,12 +4,27 @@ import {
   Plus, Folder, Settings, Trash2, Pencil, X, Check, Loader2,
   Video, Play, CheckCircle, Clock, Download, AlertTriangle, Clapperboard,
 } from 'lucide-react';
-import { api, type ApiProject, type ApiFolder, type ApiMetadata } from '@/src/lib/api';
+import { api, type ApiProject, type ApiFolder, type ApiMetadata, type Voice } from '@/src/lib/api';
+import type { FolderDefaults } from '@/src/types';
 
 interface ProjectsViewProps {
-  onStartProject: () => void;
+  onStartProject: (defaults?: FolderDefaults) => void;
   onEditProject: (project: ApiProject) => void;
 }
+
+const LANGUAGES = [
+  { code: 'pt', label: '🇧🇷 Português (Brasil)' },
+  { code: 'pt-PT', label: '🇵🇹 Português (Portugal)' },
+  { code: 'en', label: '🇺🇸 English' },
+  { code: 'es', label: '🇪🇸 Español' },
+  { code: 'fr', label: '🇫🇷 Français' },
+  { code: 'de', label: '🇩🇪 Deutsch' },
+  { code: 'it', label: '🇮🇹 Italiano' },
+  { code: 'ja', label: '🇯🇵 日本語' },
+  { code: 'ko', label: '🇰🇷 한국어' },
+  { code: 'zh', label: '🇨🇳 中文' },
+  { code: 'ar', label: '🇸🇦 العربية' },
+];
 
 const FOLDER_COLORS = [
   '#7B61FF', '#00E5FF', '#FF6B6B', '#FFB347', '#51CF66',
@@ -55,16 +70,22 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const [voices, setVoices] = useState<Voice[]>([]);
+
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderEmoji, setNewFolderEmoji] = useState('📁');
   const [newFolderColor, setNewFolderColor] = useState('#7B61FF');
+  const [newFolderVoice, setNewFolderVoice] = useState('');
+  const [newFolderLang, setNewFolderLang] = useState('pt');
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
 
   const [editingFolder, setEditingFolder] = useState<ApiFolder | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmoji, setEditEmoji] = useState('');
   const [editColor, setEditColor] = useState('');
+  const [editVoice, setEditVoice] = useState('');
+  const [editLang, setEditLang] = useState('pt');
   const [isSavingFolder, setIsSavingFolder] = useState(false);
 
   const [folderMenuId, setFolderMenuId] = useState<string | null>(null);
@@ -84,12 +105,14 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
   useEffect(() => {
     const loadAll = async () => {
       setIsLoading(true);
-      const [f, p] = await Promise.all([
+      const [f, p, v] = await Promise.all([
         api.folders.list().catch(() => [] as ApiFolder[]),
         api.projects.list().catch(() => [] as ApiProject[]),
+        api.narration.voices().catch(() => [] as Voice[]),
       ]);
       setFolders(f);
       setProjects(p);
+      setVoices(v);
       setIsLoading(false);
     };
     loadAll();
@@ -117,12 +140,14 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
     if (!newFolderName.trim()) return;
     setIsCreatingFolder(true);
     try {
-      const folder = await api.folders.create(newFolderName.trim(), newFolderEmoji, newFolderColor);
+      const folder = await api.folders.create(
+        newFolderName.trim(), newFolderEmoji, newFolderColor,
+        newFolderVoice || undefined, newFolderLang,
+      );
       setFolders(prev => [...prev, folder]);
       setShowCreateFolder(false);
-      setNewFolderName('');
-      setNewFolderEmoji('📁');
-      setNewFolderColor('#7B61FF');
+      setNewFolderName(''); setNewFolderEmoji('📁'); setNewFolderColor('#7B61FF');
+      setNewFolderVoice(''); setNewFolderLang('pt');
     } catch { /* ignore */ }
     finally { setIsCreatingFolder(false); }
   };
@@ -133,6 +158,8 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
     try {
       const updated = await api.folders.update(editingFolder.id, {
         name: editName, emoji: editEmoji, color: editColor,
+        default_voice_id: editVoice || null,
+        default_language: editLang,
       });
       setFolders(prev => prev.map(f => f.id === updated.id ? updated : f));
       setEditingFolder(null);
@@ -203,7 +230,14 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
             <span className="hidden sm:inline">Nova Pasta</span>
           </button>
           <button
-            onClick={onStartProject}
+            onClick={() => {
+              const folder = folders.find(f => f.id === selectedFolder);
+              onStartProject(folder ? {
+                folderId: folder.id,
+                defaultVoiceId: folder.default_voice_id ?? undefined,
+                defaultLanguage: folder.default_language ?? undefined,
+              } : undefined);
+            }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#7B61FF] to-[#00E5FF] text-white font-semibold text-sm hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(123,97,255,0.3)]"
           >
             <Plus className="w-4 h-4" />
@@ -278,6 +312,8 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
                         setEditName(folder.name);
                         setEditEmoji(folder.emoji);
                         setEditColor(folder.color);
+                        setEditVoice(folder.default_voice_id ?? '');
+                        setEditLang(folder.default_language ?? 'pt');
                         setFolderMenuId(null);
                       }}
                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
@@ -326,7 +362,7 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
               </p>
             </div>
             <button
-              onClick={onStartProject}
+              onClick={() => onStartProject()}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#7B61FF]/20 border border-[#7B61FF]/30 text-[#7B61FF] font-medium text-sm hover:bg-[#7B61FF]/30 transition-colors"
             >
               <Plus className="w-4 h-4" /> Criar Projeto
@@ -355,14 +391,10 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
         {showCreateFolder && (
           <ModalOverlay onClose={() => setShowCreateFolder(false)}>
             <h3 className="text-xl font-display font-semibold mb-6">Nova Pasta</h3>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
               <div>
                 <label className="text-xs text-gray-400 mb-1.5 block">Nome</label>
-                <input
-                  autoFocus
-                  type="text"
-                  placeholder="Ex: Saúde e Bem-estar"
-                  value={newFolderName}
+                <input autoFocus type="text" placeholder="Ex: Saúde e Bem-estar" value={newFolderName}
                   onChange={e => setNewFolderName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleCreateFolder()}
                   className="w-full bg-[#0A0A0B] border border-[#ffffff15] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#7B61FF]/50"
@@ -372,12 +404,8 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
                 <label className="text-xs text-gray-400 mb-1.5 block">Ícone</label>
                 <div className="flex flex-wrap gap-2">
                   {FOLDER_EMOJIS.map(e => (
-                    <button
-                      key={e}
-                      onClick={() => setNewFolderEmoji(e)}
-                      className={`w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-colors ${
-                        newFolderEmoji === e ? 'bg-[#7B61FF]/30 ring-2 ring-[#7B61FF]' : 'bg-white/5 hover:bg-white/10'
-                      }`}
+                    <button key={e} onClick={() => setNewFolderEmoji(e)}
+                      className={`w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-colors ${newFolderEmoji === e ? 'bg-[#7B61FF]/30 ring-2 ring-[#7B61FF]' : 'bg-white/5 hover:bg-white/10'}`}
                     >{e}</button>
                   ))}
                 </div>
@@ -386,25 +414,49 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
                 <label className="text-xs text-gray-400 mb-1.5 block">Cor</label>
                 <div className="flex flex-wrap gap-2">
                   {FOLDER_COLORS.map(c => (
-                    <button
-                      key={c}
-                      onClick={() => setNewFolderColor(c)}
+                    <button key={c} onClick={() => setNewFolderColor(c)}
                       className={`w-7 h-7 rounded-full transition-transform ${newFolderColor === c ? 'ring-2 ring-white scale-110' : 'hover:scale-105'}`}
                       style={{ backgroundColor: c }}
                     />
                   ))}
                 </div>
               </div>
+
+              {/* Padrões da pasta */}
+              <div className="pt-2 border-t border-[#ffffff0a]">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Padrões de Produção</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1.5 block">Idioma padrão</label>
+                    <select value={newFolderLang} onChange={e => setNewFolderLang(e.target.value)}
+                      className="w-full bg-[#0A0A0B] border border-[#ffffff15] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#7B61FF]/50 appearance-none cursor-pointer"
+                    >
+                      {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1.5 block">Narrador padrão</label>
+                    {voices.length === 0 ? (
+                      <p className="text-xs text-gray-600 px-4 py-3 bg-[#0A0A0B] border border-[#ffffff15] rounded-xl">
+                        ElevenLabs não configurado
+                      </p>
+                    ) : (
+                      <select value={newFolderVoice} onChange={e => setNewFolderVoice(e.target.value)}
+                        className="w-full bg-[#0A0A0B] border border-[#ffffff15] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#7B61FF]/50 appearance-none cursor-pointer"
+                      >
+                        <option value="">Nenhum (usar padrão)</option>
+                        {voices.map(v => <option key={v.voice_id} value={v.voice_id}>{v.name}</option>)}
+                      </select>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => setShowCreateFolder(false)}
-                  className="flex-1 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-medium transition-colors"
-                >
+                <button onClick={() => setShowCreateFolder(false)} className="flex-1 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-medium transition-colors">
                   Cancelar
                 </button>
-                <button
-                  onClick={handleCreateFolder}
-                  disabled={!newFolderName.trim() || isCreatingFolder}
+                <button onClick={handleCreateFolder} disabled={!newFolderName.trim() || isCreatingFolder}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#7B61FF] hover:bg-[#6B51EF] text-white font-semibold transition-colors disabled:opacity-40"
                 >
                   {isCreatingFolder ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
@@ -420,14 +472,11 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
       <AnimatePresence>
         {editingFolder && (
           <ModalOverlay onClose={() => setEditingFolder(null)}>
-            <h3 className="text-xl font-display font-semibold mb-6">Editar Pasta</h3>
-            <div className="space-y-4">
+            <h3 className="text-xl font-display font-semibold mb-6">Configurações da Pasta</h3>
+            <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
               <div>
                 <label className="text-xs text-gray-400 mb-1.5 block">Nome</label>
-                <input
-                  autoFocus
-                  type="text"
-                  value={editName}
+                <input autoFocus type="text" value={editName}
                   onChange={e => setEditName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSaveFolder()}
                   className="w-full bg-[#0A0A0B] border border-[#ffffff15] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#7B61FF]/50"
@@ -437,12 +486,8 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
                 <label className="text-xs text-gray-400 mb-1.5 block">Ícone</label>
                 <div className="flex flex-wrap gap-2">
                   {FOLDER_EMOJIS.map(e => (
-                    <button
-                      key={e}
-                      onClick={() => setEditEmoji(e)}
-                      className={`w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-colors ${
-                        editEmoji === e ? 'bg-[#7B61FF]/30 ring-2 ring-[#7B61FF]' : 'bg-white/5 hover:bg-white/10'
-                      }`}
+                    <button key={e} onClick={() => setEditEmoji(e)}
+                      className={`w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-colors ${editEmoji === e ? 'bg-[#7B61FF]/30 ring-2 ring-[#7B61FF]' : 'bg-white/5 hover:bg-white/10'}`}
                     >{e}</button>
                   ))}
                 </div>
@@ -451,22 +496,59 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
                 <label className="text-xs text-gray-400 mb-1.5 block">Cor</label>
                 <div className="flex flex-wrap gap-2">
                   {FOLDER_COLORS.map(c => (
-                    <button
-                      key={c}
-                      onClick={() => setEditColor(c)}
+                    <button key={c} onClick={() => setEditColor(c)}
                       className={`w-7 h-7 rounded-full transition-transform ${editColor === c ? 'ring-2 ring-white scale-110' : 'hover:scale-105'}`}
                       style={{ backgroundColor: c }}
                     />
                   ))}
                 </div>
               </div>
+
+              {/* Padrões de produção */}
+              <div className="pt-2 border-t border-[#ffffff0a]">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Padrões de Produção</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1.5 block">Idioma padrão</label>
+                    <select value={editLang} onChange={e => setEditLang(e.target.value)}
+                      className="w-full bg-[#0A0A0B] border border-[#ffffff15] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#7B61FF]/50 appearance-none cursor-pointer"
+                    >
+                      {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1.5 block">Narrador padrão (ElevenLabs)</label>
+                    {voices.length === 0 ? (
+                      <p className="text-xs text-gray-600 px-4 py-3 bg-[#0A0A0B] border border-[#ffffff15] rounded-xl">
+                        ElevenLabs não configurado — adicione ELEVENLABS_API_KEY
+                      </p>
+                    ) : (
+                      <select value={editVoice} onChange={e => setEditVoice(e.target.value)}
+                        className="w-full bg-[#0A0A0B] border border-[#ffffff15] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#7B61FF]/50 appearance-none cursor-pointer"
+                      >
+                        <option value="">Nenhum (usar padrão)</option>
+                        {voices.map(v => <option key={v.voice_id} value={v.voice_id}>{v.name}</option>)}
+                      </select>
+                    )}
+                    {editVoice && voices.find(v => v.voice_id === editVoice)?.preview_url && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <audio
+                          key={editVoice}
+                          src={voices.find(v => v.voice_id === editVoice)?.preview_url}
+                          controls
+                          className="w-full h-8 opacity-70 hover:opacity-100 transition-opacity"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setEditingFolder(null)} className="flex-1 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-medium transition-colors">
                   Cancelar
                 </button>
-                <button
-                  onClick={handleSaveFolder}
-                  disabled={!editName.trim() || isSavingFolder}
+                <button onClick={handleSaveFolder} disabled={!editName.trim() || isSavingFolder}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#7B61FF] hover:bg-[#6B51EF] text-white font-semibold transition-colors disabled:opacity-40"
                 >
                   {isSavingFolder ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
@@ -663,6 +745,7 @@ function ProjectCard({
   onDelete: () => void;
   onMove: () => void;
 }) {
+  const [imgError, setImgError] = useState(false);
   const isDone = project.status === 'completed';
   const isProgress = ['generating_script','generating_narration','generating_images','rendering','script_ready','narration_ready','images_ready'].includes(project.status);
   const folder = folders.find(f => f.id === project.folder_id);
@@ -679,8 +762,8 @@ function ProjectCard({
         className="relative w-full aspect-[9/16] bg-[#0A0A0B] cursor-pointer"
         onClick={onView}
       >
-        {project.thumbnail_url ? (
-          <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
+        {project.thumbnail_url && !imgError ? (
+          <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" onError={() => setImgError(true)} />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             {isDone

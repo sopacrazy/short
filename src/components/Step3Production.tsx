@@ -62,9 +62,10 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
     api.narration.voices().then((v) => {
       const list = v as Voice[];
       setVoices(list);
-      if (list.length > 0) setSelectedVoice(list[0].voice_id);
+      // Usa voz padrão da pasta se definida, senão primeira da lista
+      const preferred = project.defaultVoiceId && list.find(x => x.voice_id === project.defaultVoiceId);
+      setSelectedVoice(preferred ? preferred.voice_id : (list[0]?.voice_id ?? ''));
     }).catch(() => {
-      // ElevenLabs não configurado — usa voz padrão
       setVoices([{ voice_id: 'default', name: 'Voz Padrão', preview_url: undefined }]);
       setSelectedVoice('default');
     });

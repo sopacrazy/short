@@ -13,4 +13,13 @@ export interface ProjectContext {
   projectId: string;
   topic: string;
   niche?: string;
+  folderId?: string;
+  defaultVoiceId?: string;
+  defaultLanguage?: string;
+}
+
+export interface FolderDefaults {
+  folderId?: string;
+  defaultVoiceId?: string;
+  defaultLanguage?: string;
 }

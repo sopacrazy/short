@@ -4,8 +4,10 @@ import { Play, Video, CheckCircle, FolderHeart, Plus, Clock, Loader2, Trash2, Al
 import type React from 'react';
 import { api, type ApiProject, type ApiMetadata } from '@/src/lib/api';
 
+import type { FolderDefaults } from '@/src/types';
+
 interface DashboardProps {
-  onStartProject: () => void;
+  onStartProject: (defaults?: FolderDefaults) => void;
   onEditProject: (project: ApiProject) => void;
 }
 
@@ -110,7 +112,7 @@ export default function Dashboard({ onStartProject, onEditProject }: DashboardPr
           <p className="text-gray-400">Pronto para criar o próximo conteúdo viral?</p>
         </div>
         <button
-          onClick={onStartProject}
+          onClick={() => onStartProject()}
           className="group relative flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-[#00E5FF] to-[#7B61FF] text-white font-semibold hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(123,97,255,0.4)]"
         >
           <Clapperboard className="w-5 h-5" />
@@ -129,7 +131,7 @@ export default function Dashboard({ onStartProject, onEditProject }: DashboardPr
       {/* Banner de ação */}
       <section
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1A1A1E] to-[#0A0A0B] border border-[#ffffff0a] p-5 sm:p-10 cursor-pointer group"
-        onClick={onStartProject}
+        onClick={() => onStartProject()}
       >
         <div className="absolute inset-0 bg-gradient-to-r from-[#00E5FF]/10 to-[#7B61FF]/10 opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
         <div className="relative z-10 flex items-center justify-between">

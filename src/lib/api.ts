@@ -60,6 +60,8 @@ export interface ApiFolder {
   name: string;
   emoji: string;
   color: string;
+  default_voice_id: string | null;
+  default_language: string | null;
   created_at: string;
 }
 
@@ -216,12 +218,12 @@ export const api = {
 
   folders: {
     list: () => request<ApiFolder[]>('/folders'),
-    create: (name: string, emoji: string, color: string) =>
+    create: (name: string, emoji: string, color: string, defaultVoiceId?: string, defaultLanguage?: string) =>
       request<ApiFolder>('/folders', {
         method: 'POST',
-        body: JSON.stringify({ name, emoji, color }),
+        body: JSON.stringify({ name, emoji, color, default_voice_id: defaultVoiceId ?? null, default_language: defaultLanguage ?? 'pt' }),
       }),
-    update: (id: string, updates: Partial<Pick<ApiFolder, 'name' | 'emoji' | 'color'>>) =>
+    update: (id: string, updates: Partial<Pick<ApiFolder, 'name' | 'emoji' | 'color' | 'default_voice_id' | 'default_language'>>) =>
       request<ApiFolder>(`/folders/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(updates),
