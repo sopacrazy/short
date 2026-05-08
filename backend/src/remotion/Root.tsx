@@ -23,7 +23,7 @@ export const RemotionRoot: React.FC = () => {
         durationSeconds: DEFAULT_DURATION,
         endCardUrl: null,
       } satisfies VideoCompositionProps}
-      calculateMetadata={({ props }) => ({
+      calculateMetadata={({ props }: { props: VideoCompositionProps }) => ({
         durationInFrames: Math.round(
           (props.durationSeconds + (props.endCardUrl ? 5 : 0)) * DEFAULT_FPS
         ),
