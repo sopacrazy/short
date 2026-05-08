@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus, Folder, Settings, Trash2, Pencil, X, Check, Loader2,
@@ -88,7 +88,6 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
   const [editLang, setEditLang] = useState('pt');
   const [isSavingFolder, setIsSavingFolder] = useState(false);
 
-  const [folderMenuId, setFolderMenuId] = useState<string | null>(null);
   const [deleteFolder, setDeleteFolder] = useState<ApiFolder | null>(null);
   const [isDeletingFolder, setIsDeletingFolder] = useState(false);
 
@@ -99,8 +98,6 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
   const [isDeletingProject, setIsDeletingProject] = useState(false);
 
   const [movingProject, setMovingProject] = useState<ApiProject | null>(null);
-
-  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadAll = async () => {
@@ -118,16 +115,6 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
     loadAll();
   }, []);
 
-  // Fecha menu ao clicar fora
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setFolderMenuId(null);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
 
   const filteredProjects = selectedFolder === null
     ? projects
@@ -266,70 +253,27 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
             </div>
           </button>
 
-          {/* Pastas reais */}
+          {/* Pastas reais — sem dropdown, gear abre modal direto */}
           {folders.map(folder => (
-            <div key={folder.id} className="flex-shrink-0 relative" ref={folderMenuId === folder.id ? menuRef : undefined}>
-              <button
-                onClick={() => setSelectedFolder(folder.id === selectedFolder ? null : folder.id)}
-                className={`flex items-center gap-2.5 pl-4 pr-10 py-3 rounded-2xl border transition-all duration-200 ${
-                  selectedFolder === folder.id
-                    ? 'border-opacity-60 text-white'
-                    : 'bg-[#141415]/50 border-[#ffffff0a] text-gray-400 hover:bg-[#1A1A1E] hover:text-white'
-                }`}
-                style={selectedFolder === folder.id ? {
-                  background: `${folder.color}22`,
-                  borderColor: `${folder.color}80`,
-                } : undefined}
-              >
-                <span className="text-lg">{folder.emoji}</span>
-                <div className="text-left">
-                  <p className="text-sm font-semibold leading-none">{folder.name}</p>
-                  <p className="text-xs opacity-60 mt-0.5">{projectCountInFolder(folder.id)} projetos</p>
-                </div>
-              </button>
-              {/* Botão de configurações da pasta */}
-              <button
-                onClick={e => { e.stopPropagation(); setFolderMenuId(folderMenuId === folder.id ? null : folder.id); }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg hover:bg-white/10 text-gray-500 hover:text-white transition-colors"
-                title="Configurações da pasta"
-              >
-                <Settings className="w-3.5 h-3.5" />
-              </button>
-
-              {/* Dropdown menu da pasta */}
-              <AnimatePresence>
-                {folderMenuId === folder.id && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -6, scale: 0.96 }}
-                    transition={{ duration: 0.12 }}
-                    className="absolute top-full right-0 mt-1 z-30 w-44 bg-[#1A1A1E] border border-[#ffffff15] rounded-xl shadow-xl overflow-hidden"
-                  >
-                    <button
-                      onClick={() => {
-                        setEditingFolder(folder);
-                        setEditName(folder.name);
-                        setEditEmoji(folder.emoji);
-                        setEditColor(folder.color);
-                        setEditVoice(folder.default_voice_id ?? '');
-                        setEditLang(folder.default_language ?? 'pt');
-                        setFolderMenuId(null);
-                      }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
-                    >
-                      <Pencil className="w-4 h-4" /> Renomear
-                    </button>
-                    <button
-                      onClick={() => { setDeleteFolder(folder); setFolderMenuId(null); }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-rose-400 hover:bg-rose-500/10 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" /> Excluir pasta
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            <button
+              key={folder.id}
+              onClick={() => setSelectedFolder(folder.id === selectedFolder ? null : folder.id)}
+              className={`flex-shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-2xl border transition-all duration-200 ${
+                selectedFolder === folder.id
+                  ? 'text-white'
+                  : 'bg-[#141415]/50 border-[#ffffff0a] text-gray-400 hover:bg-[#1A1A1E] hover:text-white'
+              }`}
+              style={selectedFolder === folder.id ? {
+                background: `${folder.color}22`,
+                borderColor: `${folder.color}80`,
+              } : undefined}
+            >
+              <span className="text-lg">{folder.emoji}</span>
+              <div className="text-left">
+                <p className="text-sm font-semibold leading-none">{folder.name}</p>
+                <p className="text-xs opacity-60 mt-0.5">{projectCountInFolder(folder.id)} projetos</p>
+              </div>
+            </button>
           ))}
 
           {/* Botão nova pasta inline */}
@@ -342,6 +286,69 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
           </button>
         </div>
       </div>
+
+      {/* Header da pasta selecionada */}
+      <AnimatePresence>
+        {selectedFolder && (() => {
+          const folder = folders.find(f => f.id === selectedFolder);
+          if (!folder) return null;
+          const voiceName = voices.find(v => v.voice_id === folder.default_voice_id)?.name;
+          const langLabel = LANGUAGES.find(l => l.code === folder.default_language)?.label?.replace(/^.\s/, '');
+          return (
+            <motion.div
+              key={folder.id}
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="flex items-center justify-between gap-4 px-5 py-4 rounded-2xl border"
+              style={{ background: `${folder.color}12`, borderColor: `${folder.color}35` }}
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <span className="text-4xl flex-shrink-0">{folder.emoji}</span>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-white text-lg leading-tight truncate">{folder.name}</h3>
+                  <div className="flex flex-wrap items-center gap-3 mt-1">
+                    <span className="text-xs text-gray-500">{projectCountInFolder(folder.id)} projeto{projectCountInFolder(folder.id) !== 1 ? 's' : ''}</span>
+                    {langLabel && (
+                      <span className="flex items-center gap-1 text-xs text-gray-500">
+                        <span>🌐</span> {langLabel}
+                      </span>
+                    )}
+                    {voiceName && (
+                      <span className="flex items-center gap-1 text-xs text-gray-500">
+                        <span>🎙️</span> {voiceName}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    setEditingFolder(folder);
+                    setEditName(folder.name);
+                    setEditEmoji(folder.emoji);
+                    setEditColor(folder.color);
+                    setEditVoice(folder.default_voice_id ?? '');
+                    setEditLang(folder.default_language ?? 'pt');
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-sm font-medium transition-colors border border-white/5"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span className="hidden sm:inline">Configurações</span>
+                </button>
+                <button
+                  onClick={() => setDeleteFolder(folder)}
+                  className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-gray-500 hover:text-rose-400 transition-colors border border-white/5"
+                  title="Excluir pasta"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
 
       {/* Grade de projetos */}
       <div>
