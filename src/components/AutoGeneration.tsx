@@ -55,6 +55,7 @@ export default function AutoGeneration({ project, onComplete, onBack }: AutoGene
       await api.scripts.generate(project.projectId, {
         topic: project.topic,
         niche: project.niche,
+        language: project.defaultLanguage,
       });
       setStatus('script', 'done');
 
@@ -76,7 +77,7 @@ export default function AutoGeneration({ project, onComplete, onBack }: AutoGene
 
       // ── ETAPA 3: Narração ─────────────────────────────────────────
       setStatus('narration', 'running');
-      await api.narration.generate(project.projectId);
+      await api.narration.generate(project.projectId, project.defaultVoiceId);
       setStatus('narration', 'done');
 
       // ── ETAPA 4: Renderização (SSE via EventSource) ───────────────

@@ -16,7 +16,8 @@ router.post('/', async (req, res) => {
     narration_speed = 'moderado',
     previous_hook,
     previous_title,
-  } = req.body as GenerateScriptRequest & { topic: string; previous_hook?: string; previous_title?: string };
+    language = 'pt',
+  } = req.body as GenerateScriptRequest & { topic: string; previous_hook?: string; previous_title?: string; language?: string };
 
   if (!topic) return res.status(400).json({ error: 'topic é obrigatório' });
 
@@ -27,7 +28,7 @@ router.post('/', async (req, res) => {
     .eq('id', projectId);
 
   try {
-    const result = await generateScript(topic, niche, duration_target, voice_tone, narration_speed, previous_hook, previous_title);
+    const result = await generateScript(topic, niche, duration_target, voice_tone, narration_speed, previous_hook, previous_title, language);
 
     // Salva script
     const { data: scriptData, error: scriptError } = await supabase

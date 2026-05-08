@@ -28,6 +28,7 @@ export default function Step2Script({ project, onNext, onBack }: Step2ScriptProp
       .generate(project.projectId, {
         topic: project.topic,
         niche: project.niche,
+        language: project.defaultLanguage,
       })
       .then(result => {
         setScript(result.script);
@@ -53,6 +54,7 @@ export default function Step2Script({ project, onNext, onBack }: Step2ScriptProp
         niche: project.niche,
         previous_hook: usedHooksRef.current.join(' | '),
         previous_title: script?.title,
+        language: project.defaultLanguage,
       });
       setScript(result.script);
       setScenes(result.scenes);

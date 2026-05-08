@@ -5,6 +5,20 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const MODEL = 'gpt-4o';
 
+const LANGUAGE_NAMES: Record<string, string> = {
+  'pt':    'Português (Brasil)',
+  'pt-PT': 'Português (Portugal)',
+  'en':    'English',
+  'es':    'Español',
+  'fr':    'Français',
+  'de':    'Deutsch',
+  'it':    'Italiano',
+  'ja':    '日本語',
+  'ko':    '한국어',
+  'zh':    '中文',
+  'ar':    'العربية',
+};
+
 export async function generateScript(
   topic: string,
   niche: string = 'curiosidades',
@@ -13,6 +27,7 @@ export async function generateScript(
   narrationSpeed: string = 'moderado',
   previousHook?: string,
   previousTitle?: string,
+  language: string = 'pt',
 ): Promise<GenerateScriptResponse> {
   const variationSeed = Math.floor(Math.random() * 999999);
 
@@ -36,8 +51,13 @@ export async function generateScript(
     avoidBlock = `\n\n🚫 GANCHOS JÁ USADOS — PROIBIDO repetir qualquer um destes ou variações similares:\n${hookList}\n${previousTitle ? `Último título: "${previousTitle}"\n` : ''}→ Use um ÂNGULO COMPLETAMENTE DIFERENTE.`;
   }
 
-  const prompt = `Você é um especialista em criação de conteúdo viral para YouTube Shorts, TikTok e Instagram Reels.
+  const langName = LANGUAGE_NAMES[language] ?? language;
+  const langInstruction = language === 'pt'
+    ? ''
+    : `\n🌐 IDIOMA OBRIGATÓRIO: Gere TODO o texto (title, hook, body, cta, narration_text, description, hashtags) em **${langName}**. EXCEÇÃO: image_prompt SEMPRE em inglês.\n`;
 
+  const prompt = `Você é um especialista em criação de conteúdo viral para YouTube Shorts, TikTok e Instagram Reels.
+${langInstruction}
 IMPORTANTE: Gere um roteiro 100% ORIGINAL e ÚNICO.
 Seed de variação: #${variationSeed}
 Tipo de gancho obrigatório desta versão: ${hookType}${avoidBlock}

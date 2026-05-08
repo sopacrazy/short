@@ -134,7 +134,7 @@ export const api = {
   scripts: {
     generate: (
       projectId: string,
-      opts: { topic: string; niche?: string; voice_tone?: string; narration_speed?: string; previous_hook?: string; previous_title?: string }
+      opts: { topic: string; niche?: string; voice_tone?: string; narration_speed?: string; previous_hook?: string; previous_title?: string; language?: string }
     ) =>
       request<GenerateScriptResult>(`/projects/${projectId}/script`, {
         method: 'POST',
