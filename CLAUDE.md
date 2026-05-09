@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Rodar frontend (3000) + backend (3001) juntos
+# Rodar frontend (porta dinâmica) + backend (3001) juntos
 npm run dev
 
 # Separados

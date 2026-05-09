@@ -175,6 +175,20 @@ router.post('/:id/thumbnail', async (req, res) => {
   }
 });
 
+// POST /api/projects/:id/soundtrack — salva trilha sonora
+router.post('/:id/soundtrack', async (req, res) => {
+  const { id } = req.params;
+  const { soundtrack_url, music_volume } = req.body as { soundtrack_url: string; music_volume?: number };
+
+  const { error } = await supabase
+    .from('export_metadata')
+    .update({ soundtrack_url, music_volume: music_volume ?? 0.15 })
+    .eq('project_id', id);
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ success: true });
+});
+
 // DELETE /api/projects/:id — apaga projeto e limpa storage
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;

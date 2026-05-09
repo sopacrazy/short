@@ -87,14 +87,14 @@ export async function renderVideo(
     supabase.from('scenes').select('*').eq('project_id', projectId).order('scene_number'),
     supabase
       .from('narrations')
-      .select('audio_url')
+      .select('audio_url, timestamps')
       .eq('project_id', projectId)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
     supabase
       .from('export_metadata')
-      .select('end_card_url')
+      .select('end_card_url, soundtrack_url, music_volume')
       .eq('project_id', projectId)
       .maybeSingle(),
   ]);
@@ -106,7 +106,23 @@ export async function renderVideo(
   const script = scriptRes.data;
   const scenes = scenesRes.data;
   const audioUrl = narrationRes.data?.audio_url ?? null;
-  const endCardUrl = (metadataRes.data as { end_card_url?: string } | null)?.end_card_url ?? null;
+  let timestamps = narrationRes.data?.timestamps ?? null;
+  if (typeof timestamps === 'string') {
+    try {
+      timestamps = JSON.parse(timestamps);
+    } catch {
+      timestamps = null;
+    }
+  }
+  const meta = metadataRes.data as { end_card_url?: string; soundtrack_url?: string; music_volume?: number } | null;
+  const endCardUrl = meta?.end_card_url ?? null;
+  let backgroundMusicUrl = meta?.soundtrack_url ?? null;
+  const musicVolume = meta?.music_volume ?? 0.22;
+
+  // Garante URL absoluta para trilhas locais
+  if (backgroundMusicUrl && backgroundMusicUrl.startsWith('/api')) {
+    backgroundMusicUrl = `http://localhost:3001${backgroundMusicUrl}`;
+  }
 
   // Mede duração real do áudio para sincronizar as cenas
   const ffmpegBin = detectFfmpeg();
@@ -129,7 +145,7 @@ export async function renderVideo(
     durationSeconds: (s.duration_seconds / totalGptDuration) * audioDuration,
   }));
 
-  // Quebra o roteiro em linhas curtas para as legendas (usa duração real do áudio)
+  // Quebra o roteiro em linhas curtas (fallback caso timestamps falhe)
   const scriptLines = buildCaptionLines(
     `${script.hook} ${script.body} ${script.cta}`,
     audioDuration
@@ -167,6 +183,9 @@ export async function renderVideo(
       audioUrl,
       durationSeconds: audioDuration,
       endCardUrl,
+      timestamps,
+      backgroundMusicUrl,
+      musicVolume,
     },
     puppeteerInstance: undefined,
     browserExecutable,
@@ -187,6 +206,9 @@ export async function renderVideo(
       audioUrl,
       durationSeconds: audioDuration,
       endCardUrl,
+      timestamps,
+      backgroundMusicUrl,
+      musicVolume,
     },
     onProgress: ({ progress }) => {
       const pct = Math.round(progress * 100);

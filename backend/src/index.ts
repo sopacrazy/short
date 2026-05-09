@@ -1,7 +1,6 @@
 import { config } from 'dotenv';
-import { resolve } from 'path';
+import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 
 // Carrega .env local (dev). Em produção as vars vêm do dashboard do Vercel.
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -9,6 +8,7 @@ config({ path: resolve(__dirname, '../../.env') });
 
 import express from 'express';
 import cors from 'cors';
+import { createClient } from '@supabase/supabase-js';
 
 import projectsRouter from './routes/projects.js';
 import { generateThemeSuggestions } from './services/openai.service.js';
@@ -24,7 +24,7 @@ const PORT = Number(process.env.PORT ?? 3001);
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:3000', 'http://localhost:5173'];
+  : ['http://localhost'];
 
 app.use(cors({
   origin: (origin, cb) => {
@@ -70,6 +70,41 @@ app.post('/api/topics/suggestions', async (req, res) => {
 });
 
 app.use('/api/folders', foldersRouter);
+
+// Servir a trilha sonora padrão da raiz
+app.get('/api/static/suspense.mp3', (req, res) => {
+  const filePath = join(__dirname, '../../suspense.mp3');
+  res.sendFile(filePath);
+});
+
+// Proxy para áudio (contornar 403/CORS de bancos de música)
+app.get('/api/proxy/audio', async (req, res) => {
+  const { url } = req.query;
+  if (!url || typeof url !== 'string') return res.status(400).send('URL necessária');
+
+  try {
+    // Adiciona User-Agent para o Pixabay não bloquear o servidor
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://pixabay.com/'
+      }
+    });
+
+    if (!response.ok) throw new Error(`Falha ao buscar áudio (${response.status}): ${response.statusText}`);
+    
+    res.setHeader('Content-Type', response.headers.get('Content-Type') || 'audio/mpeg');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    
+    // Converte para buffer e envia
+    const arrayBuffer = await response.arrayBuffer();
+    res.send(Buffer.from(arrayBuffer));
+  } catch (err) {
+    console.error('Erro no proxy de áudio:', err);
+    res.status(500).json({ error: 'Erro ao processar áudio', message: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 app.use('/api/projects', projectsRouter);
 app.use('/api/projects/:projectId/script', scriptsRouter);
 app.use('/api/projects/:projectId/narration', narrationRouter);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Video, CheckCircle, FolderHeart, Plus, Clock, Loader2, Trash2, AlertTriangle, X, Pencil, Clapperboard, Sparkles, Download, Maximize2 } from 'lucide-react';
+import { Play, Video, CheckCircle, FolderHeart, Plus, Clock, Loader2, Trash2, AlertTriangle, X, Pencil, Clapperboard, Sparkles, Download, Maximize2, Youtube } from 'lucide-react';
 import type React from 'react';
 import { api, type ApiProject, type ApiMetadata } from '@/src/lib/api';
 
@@ -9,6 +9,7 @@ import type { FolderDefaults } from '@/src/types';
 interface DashboardProps {
   onStartProject: (defaults?: FolderDefaults) => void;
   onEditProject: (project: ApiProject) => void;
+  onExportProject: (project: ApiProject) => void;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -55,7 +56,7 @@ interface PreviewModal {
   metadata: ApiMetadata | null;
 }
 
-export default function Dashboard({ onStartProject, onEditProject }: DashboardProps) {
+export default function Dashboard({ onStartProject, onEditProject, onExportProject }: DashboardProps) {
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState<ApiProject | null>(null);
@@ -185,6 +186,7 @@ export default function Dashboard({ onStartProject, onEditProject }: DashboardPr
                 onDelete={() => setDeleteConfirm(p)}
                 onEdit={() => onEditProject(p)}
                 onView={p.status === 'completed' ? () => handleOpenPreview(p) : undefined}
+                onExport={() => onExportProject(p)}
               />
             ))}
           </div>
@@ -260,15 +262,23 @@ export default function Dashboard({ onStartProject, onEditProject }: DashboardPr
 
                 <div className="mt-auto flex flex-col gap-2 pt-4 border-t border-white/5">
                   {preview.videoUrl && (
-                    <a
-                      href={preview.videoUrl}
-                      download
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-gray-200 transition-colors"
-                    >
-                      <Download className="w-4 h-4" /> Baixar MP4
-                    </a>
+                    <div className="grid grid-cols-2 gap-2">
+                      <a
+                        href={preview.videoUrl}
+                        download
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-gray-200 transition-colors"
+                      >
+                        <Download className="w-4 h-4" /> Baixar MP4
+                      </a>
+                      <button
+                        onClick={() => { setPreview(null); onExportProject(preview.project); }}
+                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 transition-colors font-semibold text-sm"
+                      >
+                        <Youtube className="w-4 h-4" /> Publicar
+                      </button>
+                    </div>
                   )}
                   <button
                     onClick={() => { setPreview(null); onEditProject(preview.project); }}
@@ -350,7 +360,7 @@ function MetricCard({ icon, label, value }: { icon: React.ReactNode; label: stri
 }
 
 function HistoryItem({
-  title, status, statusLabel, date, thumbnailUrl, onDelete, onEdit, onView,
+  title, status, statusLabel, date, thumbnailUrl, onDelete, onEdit, onView, onExport,
 }: {
   title: string;
   status: 'done' | 'progress' | 'draft' | 'error';
@@ -360,6 +370,7 @@ function HistoryItem({
   onDelete: () => void;
   onEdit: () => void;
   onView?: () => void;
+  onExport?: () => void;
 }) {
   return (
     <div
@@ -398,6 +409,15 @@ function HistoryItem({
       </div>
 
       <div className="flex items-center gap-1 flex-shrink-0">
+        {status === 'done' && onExport && (
+          <button
+            onClick={e => { e.stopPropagation(); onExport(); }}
+            className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-500/20 text-red-500 transition-all"
+            title="Publicar"
+          >
+            <Youtube className="w-4 h-4" />
+          </button>
+        )}
         <button
           onClick={e => { e.stopPropagation(); onEdit(); }}
           className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-[#7B61FF]/20 text-[#7B61FF] transition-all"

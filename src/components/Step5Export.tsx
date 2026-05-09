@@ -107,41 +107,6 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
 
           {/* Thumbnail */}
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Image className="w-3.5 h-3.5" /> Capa / Thumbnail
-            </p>
-            <div className="bg-[#141415] rounded-2xl border border-[#ffffff1a] p-1.5 overflow-hidden relative group">
-              {isGeneratingThumb ? (
-                <div className="w-full aspect-[9/16] rounded-xl bg-[#1A1A1E] flex flex-col items-center justify-center gap-3">
-                  <div className="relative w-12 h-12">
-                    <div className="absolute inset-0 rounded-full border-3 border-[#7B61FF]/20" />
-                    <div className="absolute inset-0 rounded-full border-3 border-t-[#7B61FF] border-r-[#00E5FF] border-b-transparent border-l-transparent animate-spin" />
-                  </div>
-                  <p className="text-xs text-gray-500">Gerando thumbnail...</p>
-                </div>
-              ) : thumbnail ? (
-                <img
-                  src={thumbnail}
-                  alt="Thumbnail"
-                  className="w-full aspect-[9/16] object-cover rounded-xl group-hover:opacity-90 transition-opacity"
-                />
-              ) : (
-                <div className="w-full aspect-[9/16] rounded-xl bg-[#1A1A1E] flex flex-col items-center justify-center gap-2 text-gray-600">
-                  <Image className="w-10 h-10 opacity-20" />
-                  <p className="text-xs text-gray-600">Nenhuma thumbnail gerada</p>
-                </div>
-              )}
-            </div>
-
-            {/* Botão gerar / regerar thumbnail */}
-            <button
-              onClick={handleGenerateThumbnail}
-              disabled={isGeneratingThumb}
-              className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#7B61FF]/15 border border-[#7B61FF]/30 hover:bg-[#7B61FF]/25 hover:border-[#7B61FF]/50 text-[#7B61FF] font-semibold text-sm transition-all disabled:opacity-50"
-            >
-              {isGeneratingThumb
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Gerando...</>
-                : thumbnail
                 ? <><RefreshCw className="w-4 h-4" /> Regerar Thumbnail</>
                 : <><Sparkles className="w-4 h-4" /> Gerar Thumbnail com IA</>
               }
@@ -154,7 +119,7 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
               {videoUrl ? (
                 <a
                   href={videoUrl}
-                  download={`short-${project.projectId}.mp4`}
+                  download={`${project.topic.substring(0, 30).trim().replace(/\s+/g, '_')}.mp4`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-white text-black font-semibold hover:bg-gray-200 transition-colors"

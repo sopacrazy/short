@@ -39,7 +39,7 @@ router.post('/', async (req, res) => {
     .eq('id', projectId);
 
   try {
-    const audioBuffer = await generateNarration(fullText, voice_id, speed);
+    const { audio: audioBuffer, alignment } = await generateNarration(fullText, voice_id, speed);
 
     // Upload do áudio para o Supabase Storage
     const fileName = `narrations/${projectId}-${Date.now()}.mp3`;
@@ -60,6 +60,7 @@ router.post('/', async (req, res) => {
         audio_url: audioUrl,
         voice_id: voice_id ?? 'default',
         script_text: fullText,
+        timestamps: alignment
       })
       .select()
       .single();

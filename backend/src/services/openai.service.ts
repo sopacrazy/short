@@ -84,45 +84,66 @@ PASSO 3 — Para cada segmento, crie um image_prompt em inglês que ilustre EXAT
 • Termine com: "photorealistic, hyperdetailed, no AI artifacts, no illustration, no CGI, vertical 9:16 portrait"
 
 Responda EXCLUSIVAMENTE com JSON puro (sem markdown):
-
-{
-  "title": "título viral SEO (máx 80 chars)",
-  "hook": "gancho — primeiras frases da narração (as mais impactantes)",
-  "body": "desenvolvimento — frases do meio da narração",
-  "cta": "call to action — últimas frases da narração",
-  "duration_seconds": ${durationTarget},
-  "voice_tone": "${voiceTone}",
-  "narration_speed": "${narrationSpeed}",
-  "scenes": [
-    {
-      "scene_number": 1,
-      "narration_text": "trecho exato da narração que será falado durante esta cena",
-      "description": "descrição visual resumida do que acontece",
-      "image_prompt": "RAW photo, shot on Canon EOS R5 85mm f/1.4, [cena que ilustra EXATAMENTE o narration_text], natural light, photojournalistic, photorealistic, hyperdetailed, no AI artifacts, no illustration, no CGI, vertical 9:16 portrait",
-      "duration_seconds": 8
-    }
-  ],
-  "video_title": "título YouTube com emoji",
-  "description": "descrição SEO 150-200 palavras",
-  "hashtags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"]
-}`;
-
+• Termine com: "photorealistic, hyperdetailed, no AI artifacts, no illustration, no CGI, vertical 9:16 portrait"`;
 
   const response = await client.chat.completions.create({
     model: MODEL,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [
+      {
+        role: 'system',
+        content: `Você é um roteirista especializado em vídeos curtos e virais (Shorts/TikTok).
+Sua tarefa é criar um roteiro baseado em um tópico fornecido pelo usuário.
+
+REGRAS CRÍTICAS PARA O METADATA:
+- TÍTULO: Deve ser um GATILHO DE CURIOSIDADE absoluto. Use frases incompletas, perguntas intrigantes ou fatos inacreditáveis. Exemplos: "O segredo que...", "Você não vai acreditar no...", "Por que ninguém fala sobre...".
+- DESCRIÇÃO: Deve ter no MÁXIMO 2 LINHAS. Seja direto e use um "call to action" simples.
+- HASHTAGS: Gere 5-8 hashtags virais relacionadas.
+
+REGRAS PARA O ROTEIRO:
+- O roteiro deve ter entre 45 e 60 segundos de duração total.
+- Divida o roteiro em cenas (objetos no JSON).
+- Cada cena deve ter:
+  1. "description": O texto curto e impactante que será falado (narração).
+  2. "image_prompt": Um prompt detalhado e visual para gerar uma imagem cinematográfica realista daquela cena.
+  3. "duration_seconds": A duração estimada daquela cena (2 a 6 segundos).
+
+O retorno DEVE ser EXCLUSIVAMENTE um JSON válido no seguinte formato:
+{
+  "script": {
+    "title": "Título Curioso",
+    "hook": "Frase de impacto inicial",
+    "body": "Corpo do roteiro",
+    "cta": "Chamada para ação final",
+    "voice_tone": "narrative",
+    "narration_speed": "1.0"
+  },
+  "metadata": {
+    "video_title": "Título com Gatilho Mental",
+    "description": "Descrição de no máximo duas linhas.",
+    "hashtags": ["tag1", "tag2"]
+  },
+  "scenes": [
+    { "scene_number": 1, "description": "...", "image_prompt": "...", "duration_seconds": 4 },
+    ...
+  ]
+}`
+      },
+      { role: 'user', content: prompt }
+    ],
     temperature: 1.0,
     response_format: { type: 'json_object' },
   });
 
   const raw = JSON.parse(response.choices[0].message.content!);
+  const scriptData = raw.script || raw;
+  const metaData = raw.metadata || raw;
 
   // Palavras por segundo por velocidade de narração (português ElevenLabs)
   const WPS: Record<string, number> = { lento: 2.2, moderado: 2.7, rápido: 3.3 };
   const wps = WPS[narrationSpeed] ?? 2.7;
 
-  const scenes = (raw.scenes as Record<string, unknown>[]).map((s, i) => {
-    const narrationText = String(s.narration_text ?? s.description ?? '');
+  const scenes = (raw.scenes as any[]).map((s, i) => {
+    const narrationText = String(s.description || s.narration_text || '');
     const wordCount = narrationText.trim().split(/\s+/).filter(Boolean).length;
     // Duração calculada do texto narrado — mínimo 3s, máximo 15s por cena
     const duration = Math.min(15, Math.max(3, Math.round(wordCount / wps)));
@@ -151,20 +172,20 @@ Responda EXCLUSIVAMENTE com JSON puro (sem markdown):
     script: {
       id: '',
       project_id: '',
-      title: raw.title,
-      hook: raw.hook,
-      body: raw.body,
-      cta: raw.cta,
-      duration_seconds: raw.duration_seconds,
-      voice_tone: raw.voice_tone,
-      narration_speed: raw.narration_speed,
+      title: scriptData.title,
+      hook: scriptData.hook,
+      body: scriptData.body,
+      cta: scriptData.cta,
+      duration_seconds: durationTarget,
+      voice_tone: scriptData.voice_tone || voiceTone,
+      narration_speed: scriptData.narration_speed || narrationSpeed,
       created_at: new Date().toISOString(),
     },
     scenes,
     metadata: {
-      video_title: raw.video_title,
-      description: raw.description,
-      hashtags: raw.hashtags,
+      video_title: metaData.video_title,
+      description: metaData.description,
+      hashtags: metaData.hashtags,
     },
   };
 }

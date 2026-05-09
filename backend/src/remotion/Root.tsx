@@ -22,7 +22,8 @@ export const RemotionRoot: React.FC = () => {
         audioUrl: null,
         durationSeconds: DEFAULT_DURATION,
         endCardUrl: null,
-      } satisfies VideoCompositionProps}
+        timestamps: null,
+      } as VideoCompositionProps}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       calculateMetadata={({ props }: any) => ({
         durationInFrames: Math.round(

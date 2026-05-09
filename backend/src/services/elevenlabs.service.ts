@@ -33,12 +33,12 @@ export async function generateNarration(
   text: string,
   voiceId: string = DEFAULT_VOICE_ID,
   speed: number = 1.0
-): Promise<Buffer> {
+): Promise<{ audio: Buffer; alignment: any }> {
   if (!process.env.ELEVENLABS_API_KEY) {
     throw new Error('ELEVENLABS_API_KEY não configurada. Adicione ao arquivo .env.');
   }
 
-  const res = await fetch(`${BASE_URL}/text-to-speech/${voiceId}`, {
+  const res = await fetch(`${BASE_URL}/text-to-speech/${voiceId}/with-timestamps`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({
@@ -57,6 +57,8 @@ export async function generateNarration(
     throw new Error(`ElevenLabs TTS error ${res.status}: ${err}`);
   }
 
-  const arrayBuffer = await res.arrayBuffer();
-  return Buffer.from(arrayBuffer);
+  const data = await res.json() as { audio_base64: string; alignment: any };
+  const audioBuffer = Buffer.from(data.audio_base64, 'base64');
+  
+  return { audio: audioBuffer, alignment: data.alignment };
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus, Folder, Settings, Trash2, Pencil, X, Check, Loader2,
-  Video, Play, CheckCircle, Clock, Download, AlertTriangle, Clapperboard,
+  Video, Play, CheckCircle, Clock, Download, AlertTriangle, Clapperboard, Youtube,
 } from 'lucide-react';
 import { api, type ApiProject, type ApiFolder, type ApiMetadata, type Voice } from '@/src/lib/api';
 import type { FolderDefaults } from '@/src/types';
@@ -10,6 +10,7 @@ import type { FolderDefaults } from '@/src/types';
 interface ProjectsViewProps {
   onStartProject: (defaults?: FolderDefaults) => void;
   onEditProject: (project: ApiProject) => void;
+  onExportProject: (project: ApiProject) => void;
 }
 
 const LANGUAGES = [
@@ -64,13 +65,25 @@ interface PreviewModal {
   metadata: ApiMetadata | null;
 }
 
-export default function ProjectsView({ onStartProject, onEditProject }: ProjectsViewProps) {
+export default function ProjectsView({ onStartProject, onEditProject, onExportProject }: ProjectsViewProps) {
   const [folders, setFolders] = useState<ApiFolder[]>([]);
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const [voices, setVoices] = useState<Voice[]>([]);
+
+  const startProjectInCurrentFolder = () => {
+    const folder = selectedFolder ? folders.find(f => f.id === selectedFolder) : undefined;
+    onStartProject(folder ? {
+      folderId: folder.id,
+      folderName: folder.name,
+      folderEmoji: folder.emoji,
+      defaultVoiceId: folder.default_voice_id ?? undefined,
+      defaultVoiceName: voices.find(v => v.voice_id === folder.default_voice_id)?.name,
+      defaultLanguage: folder.default_language ?? undefined,
+    } : undefined);
+  };
 
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -217,17 +230,7 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
             <span className="hidden sm:inline">Nova Pasta</span>
           </button>
           <button
-            onClick={() => {
-              const folder = folders.find(f => f.id === selectedFolder);
-              onStartProject(folder ? {
-                folderId: folder.id,
-                folderName: folder.name,
-                folderEmoji: folder.emoji,
-                defaultVoiceId: folder.default_voice_id ?? undefined,
-                defaultVoiceName: voices.find(v => v.voice_id === folder.default_voice_id)?.name,
-                defaultLanguage: folder.default_language ?? undefined,
-              } : undefined);
-            }}
+            onClick={startProjectInCurrentFolder}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#7B61FF] to-[#00E5FF] text-white font-semibold text-sm hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(123,97,255,0.3)]"
           >
             <Plus className="w-4 h-4" />
@@ -372,7 +375,7 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
               </p>
             </div>
             <button
-              onClick={() => onStartProject()}
+              onClick={startProjectInCurrentFolder}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#7B61FF]/20 border border-[#7B61FF]/30 text-[#7B61FF] font-medium text-sm hover:bg-[#7B61FF]/30 transition-colors"
             >
               <Plus className="w-4 h-4" /> Criar Projeto
@@ -390,6 +393,7 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
                 onEdit={() => onEditProject(p)}
                 onDelete={() => setDeleteProject(p)}
                 onMove={() => setMovingProject(p)}
+                onExport={() => onExportProject(p)}
               />
             ))}
           </div>
@@ -722,11 +726,19 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
                 )}
                 <div className="mt-auto flex flex-col gap-2 pt-4 border-t border-white/5">
                   {preview.videoUrl && (
-                    <a href={preview.videoUrl} download target="_blank" rel="noreferrer"
-                      className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-gray-200 transition-colors"
-                    >
-                      <Download className="w-4 h-4" /> Baixar MP4
-                    </a>
+                    <div className="grid grid-cols-2 gap-2">
+                      <a href={preview.videoUrl} download target="_blank" rel="noreferrer"
+                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-gray-200 transition-colors"
+                      >
+                        <Download className="w-4 h-4" /> Baixar MP4
+                      </a>
+                      <button
+                        onClick={() => { setPreview(null); onExportProject(preview.project); }}
+                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 transition-colors font-semibold text-sm"
+                      >
+                        <Youtube className="w-4 h-4" /> Publicar
+                      </button>
+                    </div>
                   )}
                   <button
                     onClick={() => { setPreview(null); onEditProject(preview.project); }}
@@ -745,7 +757,7 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
 }
 
 function ProjectCard({
-  project, index, folders, onView, onEdit, onDelete, onMove,
+  project, index, folders, onView, onEdit, onDelete, onMove, onExport,
 }: {
   project: ApiProject;
   index: number;
@@ -754,6 +766,7 @@ function ProjectCard({
   onEdit: () => void;
   onDelete: () => void;
   onMove: () => void;
+  onExport?: () => void;
 }) {
   const [imgError, setImgError] = useState(false);
   const isDone = project.status === 'completed';
@@ -806,6 +819,15 @@ function ProjectCard({
 
         {/* Botões de ação */}
         <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {isDone && onExport && (
+            <button
+              onClick={e => { e.stopPropagation(); onExport(); }}
+              className="w-7 h-7 rounded-lg bg-red-500/80 backdrop-blur-sm flex items-center justify-center hover:bg-red-600 text-white transition-colors"
+              title="Publicar"
+            >
+              <Youtube className="w-3 h-3" />
+            </button>
+          )}
           <button
             onClick={e => { e.stopPropagation(); onEdit(); }}
             className="w-7 h-7 rounded-lg bg-black/60 backdrop-blur-sm flex items-center justify-center hover:bg-[#7B61FF]/60 text-white transition-colors"

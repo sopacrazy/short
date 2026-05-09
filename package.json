@@ -7,8 +7,8 @@
     "backend"
   ],
   "scripts": {
-    "dev": "concurrently -n frontend,backend -c cyan,magenta \"vite --port=3000 --host=0.0.0.0\" \"npm run dev --workspace=backend\"",
-    "dev:frontend": "vite --port=3000 --host=0.0.0.0",
+    "dev": "concurrently -n frontend,backend -c cyan,magenta \"vite --host=0.0.0.0\" \"npm run dev --workspace=backend\"",
+    "dev:frontend": "vite --host=0.0.0.0",
     "dev:backend": "npm run dev --workspace=backend",
     "build": "vite build",
     "preview": "vite preview",

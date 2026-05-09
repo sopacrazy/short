@@ -4,6 +4,7 @@ import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 
 interface SceneClipProps {
   imageUrl: string;
   sceneIndex?: number;
+  staticDisplay?: boolean; // sem zoom/pan — mostra imagem inteira (end card)
 }
 
 // 8 padrões de movimento — varia por índice de cena
@@ -57,20 +58,25 @@ const MOVEMENTS = [
   }),
 ] as const;
 
-export const SceneClip: React.FC<SceneClipProps> = ({ imageUrl, sceneIndex = 0 }) => {
+export const SceneClip: React.FC<SceneClipProps> = ({ imageUrl, sceneIndex = 0, staticDisplay = false }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
 
+  const opacity = interpolate(frame, [0, 3], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+
+  if (staticDisplay) {
+    return (
+      <AbsoluteFill style={{ opacity, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Img
+          src={imageUrl}
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+        />
+      </AbsoluteFill>
+    );
+  }
+
   const pattern = MOVEMENTS[sceneIndex % MOVEMENTS.length];
   const { scale, x, y } = pattern(frame, durationInFrames);
-
-  // Fade in rápido (3 frames) para não sumir antes do áudio iniciar; sem fade out (próxima cena sobrepõe)
-  const opacity = interpolate(
-    frame,
-    [0, 3],
-    [0, 1],
-    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-  );
 
   return (
     <AbsoluteFill style={{ overflow: 'hidden', opacity }}>

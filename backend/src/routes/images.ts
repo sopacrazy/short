@@ -167,4 +167,42 @@ router.post('/:sceneId', async (req, res) => {
   }
 });
 
+// POST /api/projects/:projectId/images/:sceneId/upload — upload de imagem manual para uma cena
+router.post('/:sceneId/upload', async (req, res) => {
+  const { projectId, sceneId } = req.params;
+  const { imageBase64, mimeType } = req.body as { imageBase64?: string; mimeType?: string };
+
+  if (!imageBase64 || !mimeType) {
+    return res.status(400).json({ error: 'Imagem não fornecida' });
+  }
+
+  try {
+    const ext = mimeType.split('/')[1] || 'jpg';
+    const buffer = Buffer.from(imageBase64, 'base64');
+    const storagePath = `scenes/${projectId}/${sceneId}_${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('audio') // Usando bucket existente para simplificar
+      .upload(storagePath, buffer, { contentType: mimeType, upsert: true });
+
+    if (uploadError) throw uploadError;
+
+    const { data: urlData } = supabase.storage.from('audio').getPublicUrl(storagePath);
+    const imageUrl = urlData.publicUrl;
+
+    const { data: updated, error: updateError } = await supabase
+      .from('scenes')
+      .update({ image_url: imageUrl })
+      .eq('id', sceneId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+    return res.json(updated);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Erro ao subir imagem';
+    return res.status(500).json({ error: message });
+  }
+});
+
 export default router;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type React from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, ArrowRight, Image as ImageIcon, Music, Type, Palette, Film,
   Loader2, AlertCircle, RefreshCw, Mic, Play, CheckCircle, Volume2, Upload, X,
@@ -38,9 +38,12 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
   const [narrationDone, setNarrationDone] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // End card
   const [endCardUrl, setEndCardUrl] = useState<string | null>(null);
   const [isUploadingEndCard, setIsUploadingEndCard] = useState(false);
+
+  // Trilha sonora (Fixa conforme pedido)
+  const [soundtrackEnabled, setSoundtrackEnabled] = useState(true);
+  const DEFAULT_SOUNDTRACK_URL = 'http://localhost:3001/api/static/suspense.mp3';
 
   const [error, setError] = useState<string | null>(null);
   const loadedRef = useRef(false);
@@ -57,20 +60,44 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
         setNarrationDone(true);
       }
       if (data.metadata?.end_card_url) setEndCardUrl(data.metadata.end_card_url);
+      
+      // Sempre garante que a trilha padrão está salva no projeto
+      if (!data.metadata?.soundtrack_url) {
+        api.music.save(project.projectId, DEFAULT_SOUNDTRACK_URL, 0.22);
+      }
     }).catch(() => {});
 
     // Carrega vozes disponíveis
     api.narration.voices().then((v) => {
       const list = v as Voice[];
       setVoices(list);
-      // Usa voz padrão da pasta se definida, senão primeira da lista
       const preferred = project.defaultVoiceId && list.find(x => x.voice_id === project.defaultVoiceId);
       setSelectedVoice(preferred ? preferred.voice_id : (list[0]?.voice_id ?? ''));
     }).catch(() => {
       setVoices([{ voice_id: 'default', name: 'Voz Padrão', preview_url: undefined }]);
       setSelectedVoice('default');
     });
+
+    // Garante que a página comece no topo
+    window.scrollTo(0, 0);
   }, [project.projectId]);
+
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  const handleImageUpload = async (sceneId: string, file: File) => {
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = (reader.result as string).split(',')[1];
+      try {
+        const updated = await api.images.upload(project.projectId, sceneId, base64, file.type);
+        setScenes(prev => prev.map(s => s.id === updated.id ? updated : s));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro ao fazer upload da imagem');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleGenerateImages = async () => {
     setIsGeneratingImages(true);
@@ -137,6 +164,27 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
     }
   };
 
+  // Avança para preview; se vem de pasta configurada e narração ainda não foi gerada, gera primeiro
+  const handleAdvance = async () => {
+    if (!narrationDone && project.defaultVoiceId && !isGeneratingNarration) {
+      setIsGeneratingNarration(true);
+      setError(null);
+      try {
+        const result = await api.narration.generate(project.projectId, selectedVoice === 'default' ? undefined : selectedVoice) as { audio_url?: string };
+        if (result.audio_url) {
+          setAudioUrl(result.audio_url);
+          setNarrationDone(true);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro ao gerar narração');
+        setIsGeneratingNarration(false);
+        return;
+      }
+      setIsGeneratingNarration(false);
+    }
+    onNext();
+  };
+
   const handleEndCardUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -157,7 +205,8 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
     reader.readAsDataURL(file);
   };
 
-  const hasImages = scenes.some(s => s.image_url);
+  const hasImages = scenes.length > 0 && scenes.some(s => s.image_url);
+  const allImagesReady = scenes.length > 0 && scenes.every(s => s.image_url);
 
   return (
     <motion.div
@@ -189,6 +238,11 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
               <Film className="w-5 h-5 text-[#7B61FF]" /> Sequência Visual
             </h3>
             <div className="flex flex-col items-end gap-1">
+              {hasImages && narrationDone && (
+                <span className="text-[10px] text-emerald-400 font-medium mb-1 animate-fade-in">
+                  ✓ Imagens e narração prontas
+                </span>
+              )}
               <button
                 onClick={handleGenerateImages}
                 disabled={isGeneratingImages || scenes.length === 0}
@@ -213,7 +267,7 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
             </div>
           </div>
 
-          <div className="bg-[#141415]/80 border border-[#ffffff1a] rounded-3xl p-5 backdrop-blur-xl flex-1 overflow-y-auto custom-scrollbar max-h-[520px]">
+          <div className="bg-[#141415]/80 border border-[#ffffff1a] rounded-3xl p-5 backdrop-blur-xl">
             {scenes.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-gray-500 gap-3">
                 <Film className="w-10 h-10 opacity-30" />
@@ -222,7 +276,13 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
             ) : (
               <div className="space-y-4">
                 {scenes.map(scene => (
-                  <SceneCard key={scene.id} scene={scene} onRegenerate={() => handleRegenerateScene(scene)} />
+                  <SceneCard 
+                    key={scene.id} 
+                    scene={scene} 
+                    onRegenerate={() => handleRegenerateScene(scene)} 
+                    onPreview={() => scene.image_url && setPreviewImage(scene.image_url)}
+                    onUpload={(file) => handleImageUpload(scene.id, file)}
+                  />
                 ))}
               </div>
             )}
@@ -232,22 +292,24 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
         {/* Coluna de configurações */}
         <div className="lg:col-span-4 space-y-4">
 
-          {/* Estilo Visual */}
-          <ConfigBlock icon={<Palette />} title="Estilo Visual" color="#7B61FF">
-            <div className="flex flex-wrap gap-2">
-              {VISUAL_STYLES.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => setVisualStyle(s.id)}
-                  className={`px-3 py-1.5 text-sm rounded-lg border transition-all ${
-                    visualStyle === s.id ? 'border-[#7B61FF] bg-[#7B61FF]/10 text-white' : 'border-white/10 text-gray-400 hover:bg-white/5'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </ConfigBlock>
+          {/* Estilo Visual (Oculto por enquanto) */}
+          <div className="hidden">
+            <ConfigBlock icon={<Palette />} title="Estilo Visual" color="#7B61FF">
+              <div className="flex flex-wrap gap-2">
+                {VISUAL_STYLES.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => setVisualStyle(s.id)}
+                    className={`px-3 py-1.5 text-sm rounded-lg border transition-all ${
+                      visualStyle === s.id ? 'border-[#7B61FF] bg-[#7B61FF]/10 text-white' : 'border-white/10 text-gray-400 hover:bg-white/5'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </ConfigBlock>
+          </div>
 
           {/* Narração — ElevenLabs */}
           <ConfigBlock
@@ -262,7 +324,8 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
                 <select
                   value={selectedVoice}
                   onChange={e => setSelectedVoice(e.target.value)}
-                  className="w-full bg-[#1A1A1E] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00E5FF]/50"
+                  disabled={!!project.defaultVoiceId}
+                  className="w-full bg-[#1A1A1E] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00E5FF]/50 disabled:opacity-50"
                 >
                   {voices.map(v => (
                     <option key={v.voice_id} value={v.voice_id}>{v.name}</option>
@@ -278,37 +341,46 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
                 </div>
               )}
 
-              <button
-                onClick={handleGenerateNarration}
-                disabled={isGeneratingNarration}
-                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                  narrationDone
-                    ? 'border border-white/10 text-gray-400 hover:bg-white/5'
-                    : 'bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[#00E5FF] hover:bg-[#00E5FF]/20'
-                } disabled:opacity-50`}
-              >
-                {isGeneratingNarration
-                  ? <><Loader2 className="w-4 h-4 animate-spin" />Gerando com ElevenLabs...</>
-                  : narrationDone
-                    ? <><RefreshCw className="w-4 h-4" />Regenerar narração</>
-                    : <><Mic className="w-4 h-4" />Gerar narração</>
-                }
-              </button>
+              {!project.defaultVoiceId ? (
+                <button
+                  onClick={handleGenerateNarration}
+                  disabled={isGeneratingNarration}
+                  className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                    narrationDone
+                      ? 'border border-white/10 text-gray-400 hover:bg-white/5'
+                      : 'bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[#00E5FF] hover:bg-[#00E5FF]/20'
+                  } disabled:opacity-50`}
+                >
+                  {isGeneratingNarration
+                    ? <><Loader2 className="w-4 h-4 animate-spin" />Gerando com ElevenLabs...</>
+                    : narrationDone
+                      ? <><RefreshCw className="w-4 h-4" />Regenerar narração</>
+                      : <><Mic className="w-4 h-4" />Gerar narração</>
+                  }
+                </button>
+              ) : (
+                <div className="w-full text-center text-xs text-[#00E5FF]/80 py-2 bg-[#00E5FF]/5 rounded-lg border border-[#00E5FF]/10">
+                  <p>Voz predefinida pela pasta.</p>
+                  <p className="mt-0.5 opacity-80">Narração automática no próximo passo.</p>
+                </div>
+              )}
             </div>
           </ConfigBlock>
 
-          {/* Estilo de legenda */}
-          <ConfigBlock icon={<Type />} title="Estilo de Legenda" color="#F43F5E">
-            <div className="grid grid-cols-2 gap-2 w-full">
-              <div className="h-14 rounded-xl bg-[#1A1A1E] border border-white/10 flex items-center justify-center cursor-pointer hover:border-white/30">
-                <span className="font-display font-bold text-base text-white">Clássico</span>
+          {/* Estilo de legenda (Oculto por enquanto) */}
+          <div className="hidden">
+            <ConfigBlock icon={<Type />} title="Estilo de Legenda" color="#F43F5E">
+              <div className="grid grid-cols-2 gap-2 w-full">
+                <div className="h-14 rounded-xl bg-[#1A1A1E] border border-white/10 flex items-center justify-center cursor-pointer hover:border-white/30">
+                  <span className="font-display font-bold text-base text-white">Clássico</span>
+                </div>
+                <div className="h-14 rounded-xl bg-[#1A1A1E] border-2 border-[#F43F5E] flex items-center justify-center cursor-pointer relative overflow-hidden">
+                  <span className="font-display font-black text-lg text-yellow-400 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] uppercase italic z-10 w-full text-center">VIRAL!</span>
+                  <div className="absolute inset-0 bg-[#F43F5E]/10" />
+                </div>
               </div>
-              <div className="h-14 rounded-xl bg-[#1A1A1E] border-2 border-[#F43F5E] flex items-center justify-center cursor-pointer relative overflow-hidden">
-                <span className="font-display font-black text-lg text-yellow-400 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] uppercase italic z-10 w-full text-center">VIRAL!</span>
-                <div className="absolute inset-0 bg-[#F43F5E]/10" />
-              </div>
-            </div>
-          </ConfigBlock>
+            </ConfigBlock>
+          </div>
 
           {/* Imagem Final — End Card */}
           <ConfigBlock
@@ -352,18 +424,55 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
             </div>
           </ConfigBlock>
 
-          {/* Trilha sonora — info */}
+          {/* Trilha sonora */}
           <ConfigBlock icon={<Music />} title="Trilha Sonora" color="#7B61FF">
-            <div className="bg-[#1A1A1E] rounded-xl p-3 border border-white/5 w-full flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-[#7B61FF]/20 flex items-center justify-center shrink-0">
-                <Play className="w-3 h-3 text-[#7B61FF]" fill="currentColor" />
+            <div className="w-full space-y-3">
+              <div className={`group flex items-center gap-3 p-3 rounded-xl border transition-all bg-[#7B61FF]/10 border-[#7B61FF]/40`}>
+                <div className="w-8 h-8 rounded-full bg-[#7B61FF] text-white flex items-center justify-center shrink-0">
+                  <Music className="w-4 h-4" />
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-medium text-white">suspense.mp3 (Padrão)</p>
+                  <p className="text-[9px] text-gray-500">Volume reduzido (12%) para narração</p>
+                </div>
+
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-500/20 border border-emerald-500/30 text-[9px] text-emerald-400 font-medium">
+                  <CheckCircle className="w-3 h-3" />
+                  ATIVA
+                </div>
               </div>
-              <div>
-                <p className="text-xs font-medium text-white">Fase 2: Remotion + FFmpeg</p>
-                <p className="text-xs text-gray-500">Áudio mixado durante a renderização</p>
-              </div>
+              <p className="text-[10px] text-center text-gray-500 italic">
+                A trilha será mixada automaticamente na renderização.
+              </p>
             </div>
           </ConfigBlock>
+
+          <div className="pt-4 space-y-4">
+            <button
+              onClick={handleAdvance}
+              disabled={isGeneratingNarration || !allImagesReady}
+              className={`w-full flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all shadow-[0_0_20px_rgba(255,255,255,0.15)] ${
+                allImagesReady 
+                  ? 'bg-white text-black hover:bg-gray-200' 
+                  : 'bg-white/10 text-gray-500 cursor-not-allowed border border-white/5 shadow-none'
+              }`}
+            >
+              {isGeneratingNarration ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /><span>Gerando narração...</span></>
+              ) : !allImagesReady ? (
+                <><span>Aguardando imagens...</span></>
+              ) : (
+                <><span>Avançar para Preview</span><ArrowRight className="w-5 h-5" /></>
+              )}
+            </button>
+
+            <div className="text-[11px] text-gray-500 text-center">
+              {!allImagesReady && <span className="text-yellow-400/80 block mb-1">⚠ Gere ou faça upload de TODAS as imagens para avançar</span>}
+              {allImagesReady && !narrationDone && project.defaultVoiceId && <span className="text-[#00E5FF]/80">🎙️ Narração será gerada automaticamente ao avançar</span>}
+              {allImagesReady && narrationDone && <span className="text-emerald-400/80 font-medium">✓ Imagens e narração prontas</span>}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -374,20 +483,26 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
         </div>
       )}
 
-      <div className="mt-6 flex justify-between items-center pt-4 border-t border-white/5">
-        <div className="text-sm text-gray-500">
-          {!hasImages && <span className="text-yellow-400/80">⚠ Gere as imagens para melhor resultado</span>}
-          {hasImages && !narrationDone && <span className="text-yellow-400/80">⚠ Gere a narração para ter áudio no vídeo</span>}
-          {hasImages && narrationDone && <span className="text-emerald-400">✓ Imagens e narração prontas</span>}
-        </div>
-        <button
-          onClick={onNext}
-          className="flex items-center gap-2 px-8 py-3 rounded-xl bg-white text-black font-semibold hover:bg-gray-200 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.15)]"
-        >
-          <span>Avançar para Preview</span>
-          <ArrowRight className="w-5 h-5" />
-        </button>
-      </div>
+
+      {/* Modal de Preview de Imagem */}
+      <AnimatePresence>
+        {previewImage && (
+          <div 
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 sm:p-20 cursor-zoom-out"
+            onClick={() => setPreviewImage(null)}
+          >
+            <motion.img 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              src={previewImage} 
+              className="max-w-full max-h-full rounded-2xl shadow-2xl" 
+            />
+            <button className="absolute top-8 right-8 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -402,7 +517,14 @@ function Sparkles({ className }: { className?: string }) {
   );
 }
 
-function SceneCard({ scene, onRegenerate }: { key?: string; scene: ApiScene; onRegenerate: () => Promise<void> | void }) {
+function SceneCard({ 
+  scene, onRegenerate, onPreview, onUpload 
+}: { 
+  scene: ApiScene; 
+  onRegenerate: () => void;
+  onPreview: () => void;
+  onUpload: (file: File) => void;
+}) {
   return (
     <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-2xl bg-[#1A1A1E] border border-[#ffffff0a] group hover:border-[#7B61FF]/30 transition-colors">
       <div className="w-full sm:w-44 h-28 rounded-xl bg-[#0A0A0B] relative overflow-hidden flex-shrink-0 border border-white/5">
@@ -411,21 +533,39 @@ function SceneCard({ scene, onRegenerate }: { key?: string; scene: ApiScene; onR
             <img
               src={scene.image_url}
               alt={`Cena ${scene.scene_number}`}
-              className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-500 group-hover:scale-105"
+              className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-500 group-hover:scale-105 cursor-zoom-in"
+              onClick={onPreview}
             />
-            <button
-              onClick={onRegenerate}
-              className="absolute top-1 right-1 p-1.5 rounded-lg bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
-              title="Regenerar imagem"
-            >
-              <RefreshCw className="w-3 h-3 text-white" />
-            </button>
+            <div className="absolute top-1 right-1 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={(e) => { e.stopPropagation(); onRegenerate(); }}
+                className="p-1.5 rounded-lg bg-black/60 hover:bg-black/80"
+                title="Regenerar imagem"
+              >
+                <RefreshCw className="w-3 h-3 text-white" />
+              </button>
+              <label className="p-1.5 rounded-lg bg-black/60 hover:bg-black/80 cursor-pointer">
+                <Upload className="w-3 h-3 text-white" />
+                <input 
+                  type="file" 
+                  className="hidden" 
+                  accept="image/*" 
+                  onChange={e => e.target.files?.[0] && onUpload(e.target.files[0])} 
+                />
+              </label>
+            </div>
           </>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-gray-600">
-            <ImageIcon className="w-5 h-5" />
-            <span className="text-[10px]">Sem imagem</span>
-          </div>
+          <label className="w-full h-full flex flex-col items-center justify-center gap-1 text-gray-600 cursor-pointer hover:bg-white/5 transition-colors">
+            <Upload className="w-5 h-5" />
+            <span className="text-[10px]">Upload imagem</span>
+            <input 
+              type="file" 
+              className="hidden" 
+              accept="image/*" 
+              onChange={e => e.target.files?.[0] && onUpload(e.target.files[0])} 
+            />
+          </label>
         )}
         <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[9px] font-mono text-white">C{scene.scene_number}</div>
         <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[9px] font-mono text-emerald-400">{scene.duration_seconds}s</div>

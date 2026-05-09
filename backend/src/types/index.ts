@@ -50,6 +50,7 @@ export interface Narration {
   audio_url: string;
   voice_id: string;
   script_text: string;
+  timestamps?: any;
   duration_seconds: number | null;
   created_at: string;
 }

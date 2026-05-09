@@ -58,9 +58,43 @@ export default function App() {
   };
 
   // Abre projeto existente direto na etapa de imagens para edição
-  const handleEditProject = (p: ApiProject) => {
-    setProject({ projectId: p.id, topic: p.topic, niche: p.niche ?? 'curiosidades' });
+  const handleEditProject = async (p: ApiProject) => {
+    const base: ProjectContext = { projectId: p.id, topic: p.topic, niche: p.niche ?? 'curiosidades' };
+    await loadProjectContext(p, base);
     setCurrentStep(AppStep.PRODUCTION_ELEMENTS);
+  };
+
+  const handleExportProject = async (p: ApiProject) => {
+    const base: ProjectContext = { projectId: p.id, topic: p.topic, niche: p.niche ?? 'curiosidades' };
+    await loadProjectContext(p, base);
+    setCurrentStep(AppStep.EXPORT);
+  };
+
+  const loadProjectContext = async (p: ApiProject, base: ProjectContext) => {
+    if (p.folder_id) {
+      try {
+        const [folder, voices] = await Promise.all([
+          api.folders.get(p.folder_id),
+          api.narration.voices().catch(() => []),
+        ]);
+        const voiceName = folder.default_voice_id
+          ? voices.find(v => v.voice_id === folder.default_voice_id)?.name
+          : undefined;
+        setProject({
+          ...base,
+          folderId: folder.id,
+          folderName: folder.name,
+          folderEmoji: folder.emoji,
+          defaultVoiceId: folder.default_voice_id ?? undefined,
+          defaultVoiceName: voiceName,
+          defaultLanguage: folder.default_language ?? 'pt',
+        });
+      } catch {
+        setProject(base);
+      }
+    } else {
+      setProject(base);
+    }
   };
 
   return (
@@ -110,11 +144,11 @@ export default function App() {
 
         <div className="max-w-7xl mx-auto p-4 sm:p-8 lg:p-12 min-h-full">
           {currentStep === AppStep.DASHBOARD && (
-            <Dashboard onStartProject={startNewProject} onEditProject={handleEditProject} />
+            <Dashboard onStartProject={startNewProject} onEditProject={handleEditProject} onExportProject={handleExportProject} />
           )}
 
           {currentStep === AppStep.PROJECTS && (
-            <ProjectsView onStartProject={startNewProject} onEditProject={handleEditProject} />
+            <ProjectsView onStartProject={startNewProject} onEditProject={handleEditProject} onExportProject={handleExportProject} />
           )}
 
           {currentStep === AppStep.TOPIC_SELECTION && (

@@ -42,6 +42,8 @@ export interface ApiMetadata {
   video_url?: string | null;
   thumbnail_url?: string | null;
   end_card_url?: string | null;
+  soundtrack_url?: string | null;
+  music_volume?: number;
 }
 
 export interface ApiProject {
@@ -195,6 +197,12 @@ export const api = {
         body: JSON.stringify({ visual_style: visualStyle }),
       }),
 
+    upload: (projectId: string, sceneId: string, imageBase64: string, mimeType: string) =>
+      request<ApiScene>(`/projects/${projectId}/images/${sceneId}/upload`, {
+        method: 'POST',
+        body: JSON.stringify({ imageBase64, mimeType }),
+      }),
+
     // Alias para retrocompatibilidade — usa o stream internamente e retorna ao final
     generateAll: async (projectId: string, visualStyle?: string) => {
       const gen = api.images.generateStream(projectId, visualStyle);
@@ -218,6 +226,7 @@ export const api = {
 
   folders: {
     list: () => request<ApiFolder[]>('/folders'),
+    get: (id: string) => request<ApiFolder>(`/folders/${id}`),
     create: (name: string, emoji: string, color: string, defaultVoiceId?: string, defaultLanguage?: string) =>
       request<ApiFolder>('/folders', {
         method: 'POST',
@@ -238,6 +247,49 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ query, count }),
       }),
+  },
+
+  music: {
+    search: async (query: string) => {
+      const CLIENT_ID = '56d3047d'; 
+      const url = `https://api.jamendo.com/v3.0/tracks/?client_id=${CLIENT_ID}&format=json&limit=15&order=popularity_total&search=${encodeURIComponent(query)}`;
+      
+      const wrap = (u: string) => `/api/proxy/audio?url=${encodeURIComponent(u)}`;
+
+      const FALLBACK_TRACKS = [
+        { id: 'f1', title: 'Inspiring Cinematic', url: wrap('https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0c6ff1bab.mp3'), duration: 145, preview: wrap('https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0c6ff1bab.mp3') },
+        { id: 'f2', title: 'Epic Adventure', url: wrap('https://cdn.pixabay.com/download/audio/2022/03/23/audio_0739989635.mp3'), duration: 180, preview: wrap('https://cdn.pixabay.com/download/audio/2022/03/23/audio_0739989635.mp3') },
+        { id: 'f3', title: 'Lofi Chill Beats', url: wrap('https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808f3030e.mp3'), duration: 120, preview: wrap('https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808f3030e.mp3') },
+        { id: 'f4', title: 'Suspense Dark Ambient', url: wrap('https://cdn.pixabay.com/download/audio/2022/02/15/audio_273111f625.mp3'), duration: 210, preview: wrap('https://cdn.pixabay.com/download/audio/2022/02/15/audio_273111f625.mp3') },
+        { id: 'f5', title: 'Modern Corporate', url: wrap('https://cdn.pixabay.com/download/audio/2021/11/25/audio_91b32e017d.mp3'), duration: 155, preview: wrap('https://cdn.pixabay.com/download/audio/2021/11/25/audio_91b32e017d.mp3') }
+      ];
+
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (!data.results || data.results.length === 0) {
+          return FALLBACK_TRACKS.filter(t => t.title.toLowerCase().includes(query.toLowerCase()) || query.length < 3);
+        }
+
+        return data.results.map((track: any) => ({
+          id: track.id,
+          title: track.name,
+          url: wrap(track.audio),
+          duration: track.duration,
+          preview: wrap(track.audio)
+        }));
+      } catch (err) {
+        console.error('Erro no Jamendo, usando backup:', err);
+        return FALLBACK_TRACKS;
+      }
+    },
+    
+    save: (projectId: string, soundtrackUrl: string, volume: number = 0.15) =>
+      request(`/projects/${projectId}/soundtrack`, {
+        method: 'POST',
+        body: JSON.stringify({ soundtrack_url: soundtrackUrl, music_volume: volume })
+      })
   },
 
   health: () => request<{ status: string; services: Record<string, boolean> }>('/health'),
