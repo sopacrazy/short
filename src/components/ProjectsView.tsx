@@ -221,7 +221,10 @@ export default function ProjectsView({ onStartProject, onEditProject }: Projects
               const folder = folders.find(f => f.id === selectedFolder);
               onStartProject(folder ? {
                 folderId: folder.id,
+                folderName: folder.name,
+                folderEmoji: folder.emoji,
                 defaultVoiceId: folder.default_voice_id ?? undefined,
+                defaultVoiceName: voices.find(v => v.voice_id === folder.default_voice_id)?.name,
                 defaultLanguage: folder.default_language ?? undefined,
               } : undefined);
             }}

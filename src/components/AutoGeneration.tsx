@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle, Loader2, AlertCircle, Sparkles, FileText, ImageIcon, Mic, Film, ArrowLeft, GalleryThumbnails } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import type { ProjectContext } from '@/src/types';
+import FolderContextBanner from './FolderContextBanner';
 
 interface AutoGenerationProps {
   project: ProjectContext;
@@ -183,6 +184,10 @@ export default function AutoGeneration({ project, onComplete, onBack }: AutoGene
       exit={{ opacity: 0, x: -20 }}
       className="max-w-2xl mx-auto flex flex-col items-center justify-center py-8 sm:py-12"
     >
+      <div className="w-full">
+        <FolderContextBanner project={project} />
+      </div>
+
       {/* Cabeçalho */}
       <div className="text-center mb-12">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-semibold uppercase tracking-wider mb-4">

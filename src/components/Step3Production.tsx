@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { api, type ApiScene, type Voice, type ImageGenEvent } from '@/src/lib/api';
 import type { ProjectContext } from '@/src/types';
+import FolderContextBanner from './FolderContextBanner';
 
 interface Step3ProductionProps {
   project: ProjectContext;
@@ -165,6 +166,8 @@ export default function Step3Production({ project, onNext, onBack }: Step3Produc
       exit={{ opacity: 0, x: -20 }}
       className="max-w-6xl mx-auto flex flex-col min-h-[calc(100vh-8rem)]"
     >
+      <FolderContextBanner project={project} />
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-semibold uppercase tracking-wider mb-3">

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Edit2, RotateCw, ArrowRight, ArrowLeft, Clock, MessageSquare, PlayCircle, Star, AlertCircle } from 'lucide-react';
 import { api, type ApiScript, type ApiScene, type ApiMetadata } from '@/src/lib/api';
 import type { ProjectContext } from '@/src/types';
+import FolderContextBanner from './FolderContextBanner';
 
 interface Step2ScriptProps {
   project: ProjectContext;
@@ -76,6 +77,8 @@ export default function Step2Script({ project, onNext, onBack }: Step2ScriptProp
       exit={{ opacity: 0, x: -20 }}
       className="max-w-5xl mx-auto flex flex-col min-h-[calc(100vh-8rem)]"
     >
+      <FolderContextBanner project={project} />
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-semibold uppercase tracking-wider mb-3">

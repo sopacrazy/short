@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TrendingUp, Search, Loader2, RefreshCw, ArrowLeft, Sparkles, Zap, SlidersHorizontal, CheckCircle } from 'lucide-react';
 import { api, type ThemeSuggestion } from '@/src/lib/api';
-import type { ProjectContext } from '@/src/types';
+import type { ProjectContext, FolderDefaults } from '@/src/types';
+import FolderContextBanner from './FolderContextBanner';
 
 interface Step1TopicProps {
   onNext: (project: ProjectContext) => void;
   onAutoGenerate: (project: ProjectContext) => void;
+  folderContext?: FolderDefaults;
 }
 
 const CATEGORIES = [
@@ -18,7 +20,7 @@ const CATEGORIES = [
   { emoji: '👁️', title: 'Teorias da conspiração', niche: 'conspiração' },
 ];
 
-export default function Step1Topic({ onNext, onAutoGenerate }: Step1TopicProps) {
+export default function Step1Topic({ onNext, onAutoGenerate, folderContext }: Step1TopicProps) {
   const [view, setView] = useState<'main' | 'themes'>('main');
   const [searchQuery, setSearchQuery] = useState('');
   const [themes, setThemes] = useState<ThemeSuggestion[]>([]);
@@ -81,6 +83,10 @@ export default function Step1Topic({ onNext, onAutoGenerate }: Step1TopicProps) 
       exit={{ opacity: 0, x: -20 }}
       className="max-w-4xl mx-auto flex flex-col"
     >
+      {folderContext?.folderId && (
+        <FolderContextBanner project={{ projectId: '', topic: '', ...folderContext }} />
+      )}
+
       <div className="mb-10 text-center">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-semibold uppercase tracking-wider mb-4">
           <span className="text-[#00E5FF]">Etapa 1 de 5</span>

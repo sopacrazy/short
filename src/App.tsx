@@ -118,7 +118,7 @@ export default function App() {
           )}
 
           {currentStep === AppStep.TOPIC_SELECTION && (
-            <Step1Topic onNext={handleTopicDone} onAutoGenerate={handleAutoGenerate} />
+            <Step1Topic onNext={handleTopicDone} onAutoGenerate={handleAutoGenerate} folderContext={pendingFolderDefaults ?? undefined} />
           )}
 
           {currentStep === AppStep.AUTO_GENERATION && project && (
