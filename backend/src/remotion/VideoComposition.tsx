@@ -124,7 +124,6 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({
         <Audio 
           src={backgroundMusicUrl} 
           volume={musicVolume} 
-          placeholder={null}
         />
       )}
 

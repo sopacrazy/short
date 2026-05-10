@@ -23,9 +23,11 @@ function getClient(): Replicate {
 
 export async function generateImage(
   prompt: string,
-  visualStyle: string = 'cinematic'
+  visualStyle: string = 'cinematic',
+  apiKey?: string | null,
 ): Promise<FluxResult> {
-  const client = getClient();
+  if (!apiKey) throw new Error('Configuração ausente: Replicate API Token não encontrado para este usuário.');
+  const client = new Replicate({ auth: apiKey });
 
   const styleHint = STYLE_HINTS[visualStyle] ?? STYLE_HINTS['cinematic'];
   const fullPrompt = `${prompt}, ${styleHint}, no text, no watermarks, no AI artifacts`;

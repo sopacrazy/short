@@ -924,10 +924,18 @@ function ProjectCard({
               {STATUS_LABEL[project.status] ?? project.status}
             </span>
           </div>
-          <span className="text-[10px] text-gray-600 flex items-center gap-1">
-            <Clock className="w-2.5 h-2.5" />
-            {timeAgo(project.created_at).replace('Há ', '')}
-          </span>
+          <div className="flex items-center gap-2">
+            {project.youtube_url && (
+              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-500/10 border border-red-500/20 text-[9px] font-bold text-red-500 uppercase tracking-tighter">
+                <Youtube className="w-2.5 h-2.5" />
+                <span>Pub</span>
+              </div>
+            )}
+            <span className="text-[10px] text-gray-600 flex items-center gap-1">
+              <Clock className="w-2.5 h-2.5" />
+              {timeAgo(project.created_at).replace('Há ', '')}
+            </span>
+          </div>
         </div>
       </div>
     </motion.div>

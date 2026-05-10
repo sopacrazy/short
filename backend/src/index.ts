@@ -19,6 +19,7 @@ import renderRouter from './routes/render.js';
 import foldersRouter from './routes/folders.js';
 import youtubeRouter from './routes/youtube.js';
 import { listVoices } from './services/elevenlabs.service.js';
+import { authMiddleware } from './middleware/auth.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
@@ -49,9 +50,13 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-app.get('/api/voices', async (_req, res) => {
+import { getUserAIKeys } from './services/settings.service.js';
+
+app.get('/api/voices', authMiddleware, async (req: any, res) => {
+  const userId = req.user.id;
   try {
-    const voices = await listVoices();
+    const keys = await getUserAIKeys(userId);
+    const voices = await listVoices(keys.elevenlabs_key);
     res.json(voices);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro';
@@ -59,11 +64,13 @@ app.get('/api/voices', async (_req, res) => {
   }
 });
 
-app.post('/api/topics/suggestions', async (req, res) => {
+app.post('/api/topics/suggestions', authMiddleware, async (req: any, res) => {
   const { query, count = 5 } = req.body as { query?: string; count?: number };
+  const userId = req.user.id;
   if (!query) return res.status(400).json({ error: 'query é obrigatório' });
   try {
-    const themes = await generateThemeSuggestions(query, count);
+    const keys = await getUserAIKeys(userId);
+    const themes = await generateThemeSuggestions(query, count, keys.openai_key);
     return res.json(themes);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro';
@@ -71,7 +78,7 @@ app.post('/api/topics/suggestions', async (req, res) => {
   }
 });
 
-app.use('/api/folders', foldersRouter);
+app.use('/api/folders', authMiddleware, foldersRouter);
 app.use('/api/youtube', youtubeRouter);
 
 // Servir a trilha sonora padrão da raiz
@@ -109,16 +116,16 @@ app.get('/api/proxy/audio', async (req, res) => {
 });
 
 app.use('/api/projects', projectsRouter);
-app.use('/api/projects/:projectId/script', scriptsRouter);
-app.use('/api/projects/:projectId/narration', narrationRouter);
-app.use('/api/projects/:projectId/images', imagesRouter);
-app.use('/api/projects/:projectId/render', renderRouter);
-app.use('/api/render', renderRouter);
+app.use('/api/projects/:projectId/script', authMiddleware, scriptsRouter);
+app.use('/api/projects/:projectId/narration', authMiddleware, narrationRouter);
+app.use('/api/projects/:projectId/images', authMiddleware, imagesRouter);
+app.use('/api/projects/:projectId/render', authMiddleware, renderRouter);
+app.use('/api/render', authMiddleware, renderRouter);
 
 // Em desenvolvimento local inicia o servidor. No Vercel exporta o app.
 if (process.env.VERCEL !== '1') {
   app.listen(PORT, () => {
-    console.log(`\n🚀 AstraShorts Backend rodando em http://localhost:${PORT}`);
+    console.log(`\n🚀 Clipai Backend rodando em http://localhost:${PORT}`);
     console.log(`   Health: http://localhost:${PORT}/api/health\n`);
     console.log('   Serviços configurados:');
     console.log(`   ${process.env.OPENAI_API_KEY      ? '✅' : '❌'} OpenAI`);

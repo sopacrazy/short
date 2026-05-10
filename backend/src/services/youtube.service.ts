@@ -3,7 +3,6 @@ import { Readable } from 'stream';
 import { getSupabase } from './supabase.service.js';
 
 const SCOPES = ['https://www.googleapis.com/auth/youtube.upload'];
-const TOKEN_ROW_ID = 1;
 
 function createOAuthClient() {
   return new google.auth.OAuth2(
@@ -13,43 +12,44 @@ function createOAuthClient() {
   );
 }
 
-export function getAuthUrl(): string {
+export function getAuthUrl(userId: string): string {
   return createOAuthClient().generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
     prompt: 'consent',
+    state: userId,
   });
 }
 
-export async function exchangeCodeAndStore(code: string): Promise<void> {
+export async function exchangeCodeAndStore(code: string, userId: string): Promise<void> {
   const client = createOAuthClient();
   const { tokens } = await client.getToken(code);
   const { error } = await getSupabase()
     .from('youtube_tokens')
     .upsert({
-      id: TOKEN_ROW_ID,
+      user_id: userId,
       access_token: tokens.access_token!,
       refresh_token: tokens.refresh_token ?? null,
       expiry_date: tokens.expiry_date ?? null,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
+    }, { onConflict: 'user_id' });
   if (error) throw new Error(`Erro ao salvar tokens: ${error.message}`);
 }
 
-export async function isConnected(): Promise<boolean> {
+export async function isConnected(userId: string): Promise<boolean> {
   const { data } = await getSupabase()
     .from('youtube_tokens')
-    .select('id')
-    .eq('id', TOKEN_ROW_ID)
+    .select('user_id')
+    .eq('user_id', userId)
     .single();
   return !!data;
 }
 
-async function getAuthenticatedClient() {
+async function getAuthenticatedClient(userId: string) {
   const { data, error } = await getSupabase()
     .from('youtube_tokens')
     .select('*')
-    .eq('id', TOKEN_ROW_ID)
+    .eq('user_id', userId)
     .single();
 
   if (error || !data) {
@@ -73,7 +73,7 @@ async function getAuthenticatedClient() {
         expiry_date: credentials.expiry_date ?? null,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', TOKEN_ROW_ID);
+      .eq('user_id', userId);
     client.setCredentials(credentials);
   }
 
@@ -88,8 +88,10 @@ export async function uploadToYouTube(
   language = 'pt',
   channelTags: string[] = [],
   scheduledAt?: string,
+  userId?: string,
 ): Promise<string> {
-  const auth = await getAuthenticatedClient();
+  if (!userId) throw new Error('UserId é necessário para upload');
+  const auth = await getAuthenticatedClient(userId);
   const youtube = google.youtube({ version: 'v3', auth });
 
   const videoRes = await fetch(videoUrl);

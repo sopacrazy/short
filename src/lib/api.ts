@@ -1,4 +1,5 @@
 // Cliente de API — todas as chamadas ao backend passam por aqui
+import { supabase } from './supabase';
 
 export interface ImageGenEvent {
   type: 'started' | 'generating' | 'scene_done' | 'scene_error' | 'completed';
@@ -56,6 +57,7 @@ export interface ApiProject {
   created_at: string;
   thumbnail_url?: string | null;
   folder_id?: string | null;
+  youtube_url?: string | null;
 }
 
 export interface ApiFolder {
@@ -84,9 +86,16 @@ export interface GenerateScriptResult {
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const authHeader = session ? { 'Authorization': `Bearer ${session.access_token}` } : {};
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeader,
+      ...options?.headers,
+    },
   });
 
   const data = await res.json();
@@ -167,9 +176,15 @@ export const api = {
   images: {
     // Streaming SSE via fetch — yields eventos por cena conforme geradas
     async *generateStream(projectId: string, visualStyle?: string): AsyncGenerator<ImageGenEvent> {
+      const { data: { session } } = await supabase.auth.getSession();
+      const authHeader = session ? { 'Authorization': `Bearer ${session.access_token}` } : {};
+
       const res = await fetch(`${API_BASE}/projects/${projectId}/images`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...authHeader
+        },
         body: JSON.stringify({ visual_style: visualStyle }),
       });
       if (!res.ok || !res.body) {
@@ -222,8 +237,18 @@ export const api = {
       ),
 
     // Abre SSE stream — retorna EventSource já conectado
-    streamStatus: (projectId: string): EventSource =>
-      new EventSource(`${API_BASE}/projects/${projectId}/render/status`),
+    streamStatus: (projectId: string): EventSource => {
+      const { data: { session } } = (supabase.auth as any).internal?._getSession() || { data: { session: null } };
+      // Fallback: busca síncrona do cache do SDK se possível, ou apenas tenta sem token (falhará se protegido)
+      // O Supabase SDK mantém a sessão no localStorage.
+      const token = (supabase.auth as any).session?.()?.access_token; 
+      
+      // Tentativa mais segura:
+      const currentSession = JSON.parse(localStorage.getItem(`sb-${import.meta.env.VITE_SUPABASE_ID || 'vtbqjgmszejuhufljzlk'}-auth-token`) || 'null');
+      const accessToken = currentSession?.access_token;
+
+      return new EventSource(`${API_BASE}/projects/${projectId}/render/status${accessToken ? `?token=${accessToken}` : ''}`);
+    },
   },
 
   folders: {
@@ -234,7 +259,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ name, emoji, color, default_voice_id: defaultVoiceId ?? null, default_language: defaultLanguage ?? 'pt', default_youtube_tags: defaultYoutubeTags ?? [] }),
       }),
-    update: (id: string, updates: Partial<Pick<ApiFolder, 'name' | 'emoji' | 'color' | 'default_voice_id' | 'default_language'>>) =>
+    update: (id: string, updates: Partial<Pick<ApiFolder, 'name' | 'emoji' | 'color' | 'default_voice_id' | 'default_language' | 'default_youtube_tags'>>) =>
       request<ApiFolder>(`/folders/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(updates),

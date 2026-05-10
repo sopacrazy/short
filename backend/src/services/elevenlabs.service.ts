@@ -2,9 +2,9 @@ import type { Voice } from '../types/index.js';
 
 const BASE_URL = 'https://api.elevenlabs.io/v1';
 
-function headers() {
+function headers(apiKey: string) {
   return {
-    'xi-api-key': process.env.ELEVENLABS_API_KEY!,
+    'xi-api-key': apiKey,
     'Content-Type': 'application/json',
   };
 }
@@ -12,12 +12,9 @@ function headers() {
 // Voz padrão em pt-BR — substitua por uma voice_id real do painel ElevenLabs
 const DEFAULT_VOICE_ID = 'pNInz6obpgDQGcFmaJgB'; // Adam (pt-BR compatível)
 
-export async function listVoices(): Promise<Voice[]> {
-  if (!process.env.ELEVENLABS_API_KEY) {
-    return [];
-  }
-
-  const res = await fetch(`${BASE_URL}/voices`, { headers: headers() });
+export async function listVoices(apiKey?: string | null): Promise<Voice[]> {
+  if (!apiKey) return [];
+  const res = await fetch(`${BASE_URL}/voices`, { headers: headers(apiKey) });
   if (!res.ok) throw new Error(`ElevenLabs listVoices error: ${res.status}`);
 
   const data = (await res.json()) as { voices: Array<{ voice_id: string; name: string; description?: string; preview_url?: string }> };
@@ -32,15 +29,14 @@ export async function listVoices(): Promise<Voice[]> {
 export async function generateNarration(
   text: string,
   voiceId: string = DEFAULT_VOICE_ID,
-  speed: number = 1.0
+  speed: number = 1.0,
+  apiKey?: string | null,
 ): Promise<{ audio: Buffer; alignment: any }> {
-  if (!process.env.ELEVENLABS_API_KEY) {
-    throw new Error('ELEVENLABS_API_KEY não configurada. Adicione ao arquivo .env.');
-  }
+  if (!apiKey) throw new Error('Configuração ausente: ElevenLabs API Key não encontrada para este usuário.');
 
   const res = await fetch(`${BASE_URL}/text-to-speech/${voiceId}/with-timestamps`, {
     method: 'POST',
-    headers: headers(),
+    headers: headers(apiKey),
     body: JSON.stringify({
       text,
       model_id: 'eleven_multilingual_v2',

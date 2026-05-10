@@ -2,12 +2,16 @@ import { Router } from 'express';
 import { supabase } from '../services/supabase.service.js';
 import { generateNarration, listVoices } from '../services/elevenlabs.service.js';
 
+import { getUserAIKeys } from '../services/settings.service.js';
+
 const router = Router({ mergeParams: true });
 
 // GET /api/voices — listar vozes disponíveis
-router.get('/voices', async (_req, res) => {
+router.get('/voices', async (req: any, res) => {
+  const userId = req.user.id;
   try {
-    const voices = await listVoices();
+    const keys = await getUserAIKeys(userId);
+    const voices = await listVoices(keys.elevenlabs_key);
     return res.json(voices);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro ao buscar vozes';
@@ -16,9 +20,14 @@ router.get('/voices', async (_req, res) => {
 });
 
 // POST /api/projects/:projectId/narration — gerar narração
-router.post('/', async (req, res) => {
+router.post('/', async (req: any, res) => {
   const { projectId } = req.params as { projectId: string };
+  const userId = req.user.id;
   const { voice_id, speed = 1.0 } = req.body as { voice_id?: string; speed?: number };
+
+  // Verifica se o projeto pertence ao usuário
+  const { data: project } = await supabase.from('projects').select('id').eq('id', projectId).eq('user_id', userId).single();
+  if (!project) return res.status(403).json({ error: 'Não autorizado' });
 
   // Busca o roteiro completo
   const { data: script, error: scriptError } = await supabase
@@ -39,7 +48,8 @@ router.post('/', async (req, res) => {
     .eq('id', projectId);
 
   try {
-    const { audio: audioBuffer, alignment } = await generateNarration(fullText, voice_id, speed);
+    const keys = await getUserAIKeys(userId);
+    const { audio: audioBuffer, alignment } = await generateNarration(fullText, voice_id, speed, keys.elevenlabs_key);
 
     // Upload do áudio para o Supabase Storage
     const fileName = `narrations/${projectId}-${Date.now()}.mp3`;

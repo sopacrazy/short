@@ -5,16 +5,18 @@ import { supabase } from '../services/supabase.service.js';
 const router = Router({ mergeParams: true });
 
 // POST /api/projects/:projectId/render — enfileira renderização
-router.post('/', async (req, res) => {
+router.post('/', async (req: any, res) => {
   const { projectId } = req.params as { projectId: string };
+  const userId = req.user.id;
 
   const { data: project, error } = await supabase
     .from('projects')
-    .select('status')
+    .select('status, user_id')
     .eq('id', projectId)
     .single();
 
   if (error || !project) return res.status(404).json({ error: 'Projeto não encontrado' });
+  if (project.user_id !== userId) return res.status(403).json({ error: 'Não autorizado' });
 
   if (project.status === 'rendering') {
     return res.status(409).json({ error: 'Projeto já está sendo renderizado' });
@@ -41,8 +43,15 @@ router.post('/', async (req, res) => {
 });
 
 // GET /api/projects/:projectId/render/status — status via SSE (Server-Sent Events)
-router.get('/status', (req, res) => {
+router.get('/status', async (req: any, res) => {
   const { projectId } = req.params as { projectId: string };
+  const userId = req.user.id;
+
+  // Verifica se o projeto pertence ao usuário
+  const { data: projectCheck } = await supabase.from('projects').select('user_id').eq('id', projectId).single();
+  if (!projectCheck || projectCheck.user_id !== userId) {
+    return res.status(403).json({ error: 'Não autorizado' });
+  }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');

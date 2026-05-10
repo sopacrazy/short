@@ -8,86 +8,85 @@ O projeto é um **Monorepo** dividido em duas partes principais (Frontend e Back
 
 ### Frontend
 - **Framework:** React 19 + Vite.
-- **Estilização:** Tailwind CSS (versão 4) + componentização customizada.
-- **Ícones & Animações:** `lucide-react` para ícones e `motion` (Framer Motion) para animações.
-- **Roteamento & Estado:** Gerenciamento de estado local no `App.tsx` (sem uso de Redux). O fluxo de telas (Dashboard -> Etapas de Criação) é controlado pelo estado `currentStep`.
-- **Comunicação de API:** Centralizada no arquivo `src/lib/api.ts`.
+- **Estilização:** Tailwind CSS (versão 4) + componentização customizada (Glassmorphism, Dark Mode).
+- **Ícones & Animações:** `lucide-react` para ícones e `motion` (Framer Motion) para animações e micro-interações.
+- **Roteamento & Estado:** Gerenciamento de estado linear no `App.tsx`. O fluxo de telas é controlado pelo estado `currentStep`.
+- **Comunicação de API:** Centralizada em `src/lib/api.ts`, utilizando `fetch` para REST e `EventSource` / Async Generators para SSE (Server-Sent Events).
 
 ### Backend
-- **Framework:** Node.js com Express (escrito em TypeScript).
-- **Video Rendering:** Remotion (`@remotion/renderer` e `@remotion/bundler`) para renderizar os vídeos programaticamente.
-- **Banco de Dados & Storage:** Supabase (PostgreSQL para dados tabulares como projetos, scripts, etc., e Storage para armazenar áudios e possivelmente os vídeos renderizados).
-- **Processamento Assíncrono:** `p-queue` para controle de filas de requisições.
+- **Framework:** Node.js + Express (TypeScript).
+- **Video Rendering:** Remotion (`@remotion/renderer`) executado em workers assíncronos (`render.worker.ts`).
+- **Banco de Dados & Storage:** Supabase (Postgres + Storage). Buckets: `audio` (narrações, trilhas, end-cards) e `videos` (MP4 finais).
+- **Processamento em Fila:** `p-queue` para gerenciar renderizações sequenciais, evitando sobrecarga de CPU.
+- **Real-time:** SSE (Server-Sent Events) para transmitir progresso de geração de imagens e renderização de vídeo sem polling.
+
+### Autenticação & SaaS (Multi-tenancy)
+- **Supabase Auth:** Gerenciamento de usuários, login social e sessões.
+- **Isolamento de Dados:** Row Level Security (RLS) garante que cada usuário acesse apenas seus próprios projetos e pastas.
+- **AI Keys Privadas:** Cada usuário pode configurar suas próprias chaves (OpenAI, Replicate, ElevenLabs) no painel de configurações, com fallback para as chaves do sistema se permitido.
+- **Middleware de Backend:** Validação de JWT em todas as rotas sensíveis para garantir que o `user_id` da requisição corresponda ao dono dos dados.
 
 ### 🤖 Integrações de IA (Serviços Externos)
-1. **OpenAI (GPT-4o):** Utilizado para gerar ideias de tópicos, roteiros, hooks, CTAs (Call to Actions) e metadados SEO (títulos, descrições, hashtags).
-2. **Replicate (Flux 1.1 Pro):** Utilizado para geração das imagens (proporção 9:16) baseadas nas cenas do roteiro.
-3. **ElevenLabs:** Utilizado para Text-to-Speech (TTS). Transforma o roteiro em locução (áudio MP3) que é salva no storage do Supabase.
+1. **OpenAI (GPT-4o):** Geração de temas, roteiros estruturados (JSON), hooks persuasivos e metadados SEO.
+2. **Replicate (Flux 1.1 Pro):** Geração de imagens realistas em proporção 9:16 com lógica de retry automático para limites de taxa (429).
+3. **ElevenLabs:** Text-to-Speech (TTS) com suporte a múltiplos idiomas e geração de timestamps precisos (por caractere) para sincronização de legendas.
 
 ---
 
 ## ⚙️ Variáveis de Ambiente (`.env`)
-O arquivo `.env` deve ficar na raiz do projeto e **não deve** ser versionado. As seguintes variáveis são utilizadas:
 
 **Obrigatórias:**
-- `OPENAI_API_KEY`: Chave de API da OpenAI (geração de texto).
-- `SUPABASE_URL`: URL do projeto no Supabase.
-- `SUPABASE_KEY`: Chave de API do Supabase (Service Role / Anon Key).
+- `OPENAI_API_KEY`: Geração de texto e metadados.
+- `SUPABASE_URL` / `SUPABASE_KEY` / `SUPABASE_SERVICE_KEY`: Persistência e storage.
+- `ELEVENLABS_API_KEY`: Narração profissional.
+- `REPLICATE_API_TOKEN`: Geração de imagens Flux.
 
-**Recomendadas (O aplicativo perde funcionalidades sem elas):**
-- `ELEVENLABS_API_KEY`: Chave de API do ElevenLabs (geração de voz).
-- `REPLICATE_API_TOKEN`: Chave de API do Replicate (geração de imagens com Flux).
-- `PORT`: Porta do servidor Backend (padrão `3001`).
+**Opcionais:**
+- `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET`: Necessários para publicação direta.
+- `PORT`: Porta do servidor (padrão `3001`).
 
 ---
 
 ## 🗺️ Fluxo de Funcionamento (Pipelines)
 
-O processo de criação de um vídeo no app é linear e separado por **Steps** (Etapas), controlados pelo componente principal `App.tsx`:
-
-1. **Dashboard / Projects:** Interface inicial para visualização de projetos e criação de novas pastas.
-2. **Step 1 (Topic Selection):** O usuário define um tema/nicho. (Chamada para `POST /api/projects` para salvar no banco).
-3. **Step 2 (Script Generation):** O backend consome a API da OpenAI para estruturar um roteiro completo de shorts (dividido em cenas, com texto falado e prompts para imagens). Salva as informações no Supabase.
-4. **Step 3 (Production Elements - Imagens e Narração):**
-   - **Imagens:** O backend solicita a geração das imagens via API do Replicate (Flux 1.1 Pro) para cada cena gerada.
-   - **Áudio:** O backend consome o ElevenLabs para gerar o arquivo MP3 da locução e salva no Supabase Storage.
-5. **Step 4 (Preview):** Apresentação das imagens e do roteiro para validação e possíveis edições manuais.
-6. **Step 5 (Export/Renderização):** Integração com o Remotion no backend para renderizar e compilar todos os elementos (áudio, imagens, tempos e textos) em um vídeo MP4 final.
-
-Também existe um fluxo de **Auto Generation**, que agrupa as etapas do roteiro e da produção num processo único.
-
----
-
-## 💻 Comandos e Scripts Úteis
-
-O projeto facilita a execução através de scripts definidos no `package.json` principal:
-
-- `npm run dev`: Executa simultaneamente o Frontend (porta dinâmica, ex: 5173) e o Backend (porta 3001) através do `concurrently`. O Vite cuida do proxy das chamadas `/api/*` para o backend automaticamente.
-- `npm run dev:frontend`: Inicia apenas o frontend.
-- `npm run dev:backend`: Inicia apenas o backend usando `tsx watch` (hot-reload habilitado).
-- `npm run build`: Faz o build de produção do frontend (`dist`).
-- `npm run lint`: Checa a tipagem do frontend (usando `tsc --noEmit`).
+1. **Dashboard & Pastas:** Organização de projetos em pastas com configurações padrão (Idioma, Voz, Tags do YouTube).
+2. **Step 1 (Tópico):** Definição do tema. O app sugere nichos e ganchos iniciais via IA.
+3. **Step 2 (Roteiro):** Geração do script dividido em cenas. O usuário pode editar o texto antes de produzir.
+4. **Step 3 (Produção):**
+   - **Imagens (SSE):** Geração paralela via Flux com feedback em tempo real cena a cena.
+   - **Narração:** Geração do MP3 + extração de timestamps para legendas dinâmicas.
+   - **Trilha Sonora:** Busca via Jamendo API com fallback para biblioteca local (`suspense.mp3`).
+5. **Step 4 (Preview & Ajustes):** Visualização de imagens, escolha de música de fundo e upload de "End-card" (Cartão final).
+6. **Step 5 (Render & Export):**
+   - O Remotion compila imagens, áudio e legendas (amarelo #FFE600 com glow).
+   - O vídeo final é salvo no Supabase.
+   - **YouTube Integration:** Upload direto ou agendado para o YouTube Shorts após a renderização.
 
 ---
 
-## 📁 Estrutura de Diretórios Importantes
+## 📁 Estrutura de Diretórios
 
 ```text
-c:\SistemaAdr\short\
- ├── .env                 # Variáveis de ambiente
- ├── package.json         # Dependências do frontend e Workspace
- ├── backend/             # Diretório do servidor Node.js/Express
+short/
+ ├── backend/
  │    ├── src/
- │    │    ├── index.ts           # Ponto de entrada do backend
- │    │    ├── routes/            # Endpoints (projetos, imagens, scripts, etc.)
- │    │    ├── services/          # Conexão c/ OpenAI, Replicate, Supabase, ElevenLabs
- │    │    └── remotion/          # Composições e lógica de vídeo (React Remotion)
- │    └── package.json    # Dependências do backend (Express, Remotion, Supabase, etc)
- ├── src/                 # Código do Frontend (React + Vite)
- │    ├── App.tsx         # Controlador mestre do fluxo e state de telas
- │    ├── lib/api.ts      # Cliente das APIs (Chamadas Axios/Fetch para o backend)
- │    └── components/     # UI components (Steps de criação, Dashboard, etc.)
- └── supabase/            # Configurações/Schema do banco de dados (schema.sql)
+ │    │    ├── routes/        # Projetos, Imagens, Scripts, Render, YouTube
+ │    │    ├── services/      # OpenAI, Flux, ElevenLabs, Supabase, YouTube
+ │    │    ├── queue/         # Fila de renderização p-queue
+ │    │    ├── workers/       # Processamento pesado (Render Worker)
+ │    │    └── remotion/      # Composições React (VideoComposition, DynamicCaption)
+ ├── src/                     # Frontend React
+ │    ├── lib/api.ts          # Cliente API centralizado
+ │    ├── components/         # Views de Steps (Step1-5) e Dashboard
+ │    └── types/              # Interfaces compartilhadas
+ └── supabase/                # SQL Schemas e Migrations
 ```
 
-> **Dica de Manutenção:** Ao fazer mudanças na lógica de rotas/APIs, atualize primeiro em `backend/src/routes/` e lembre-se de refletir no client frontend em `src/lib/api.ts`.
+---
+
+## 🛠️ Manutenção e Erros Frequentes
+
+- **Erro de Tipagem (TS):** Ao adicionar campos em pastas ou projetos, certifique-se de atualizar `ApiFolder` e `ApiProject` em `src/lib/api.ts`.
+- **Limites de API:** O Replicate (Flux) tem limites estritos; o backend implementa um delay de 10s entre cenas para contas com saldo baixo.
+- **Sync de Legendas:** Se as legendas parecerem desalinhadas, verifique se os timestamps do ElevenLabs estão sendo extraídos corretamente em `narration.ts`.
+- **Renderização Lenta:** A renderização depende de CPU. Em ambientes cloud limitados, o tempo de render pode exceder o timeout do HTTP; use sempre o SSE status para monitorar.

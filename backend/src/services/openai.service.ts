@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import type { GenerateScriptResponse } from '../types/index.js';
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const DEFAULT_CLIENT = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const MODEL = 'gpt-4o';
 
@@ -28,7 +28,10 @@ export async function generateScript(
   previousHook?: string,
   previousTitle?: string,
   language: string = 'pt',
+  apiKey?: string | null,
 ): Promise<GenerateScriptResponse> {
+  if (!apiKey) throw new Error('Configuração ausente: OpenAI API Key não encontrada para este usuário.');
+  const client = new OpenAI({ apiKey });
   const variationSeed = Math.floor(Math.random() * 999999);
 
   const HOOK_TYPES = [
@@ -193,9 +196,10 @@ O retorno DEVE ser EXCLUSIVAMENTE um JSON válido no seguinte formato:
 export async function regenerateScript(
   topic: string,
   _previousTitle: string,
-  niche: string = 'curiosidades'
+  niche: string = 'curiosidades',
+  apiKey?: string | null,
 ): Promise<GenerateScriptResponse> {
-  return generateScript(topic, niche);
+  return generateScript(topic, niche, 45, 'dramático e envolvente', 'moderado', undefined, undefined, 'pt', apiKey);
 }
 
 export interface ThemeSuggestion {
@@ -206,7 +210,9 @@ export interface ThemeSuggestion {
   hook: string;
 }
 
-export async function generateThemeSuggestions(query: string, count = 5): Promise<ThemeSuggestion[]> {
+export async function generateThemeSuggestions(query: string, count = 5, apiKey?: string | null): Promise<ThemeSuggestion[]> {
+  if (!apiKey) throw new Error('Configuração ausente: OpenAI API Key não encontrada para este usuário.');
+  const client = new OpenAI({ apiKey });
   const seed = Math.floor(Math.random() * 99999);
   const response = await client.chat.completions.create({
     model: MODEL,
@@ -241,7 +247,10 @@ export async function generateThumbnailPrompt(
   title: string,
   niche: string,
   hook: string,
+  apiKey?: string | null,
 ): Promise<string> {
+  if (!apiKey) throw new Error('Configuração ausente: OpenAI API Key não encontrada para este usuário.');
+  const client = new OpenAI({ apiKey });
   const response = await client.chat.completions.create({
     model: MODEL,
     messages: [{
@@ -270,7 +279,9 @@ Reply with ONLY the image prompt — no explanations, no markdown.`,
   return response.choices[0].message.content?.trim() ?? title;
 }
 
-export async function generateTopicSuggestions(niche: string): Promise<string[]> {
+export async function generateTopicSuggestions(niche: string, apiKey?: string | null): Promise<string[]> {
+  if (!apiKey) throw new Error('Configuração ausente: OpenAI API Key não encontrada para este usuário.');
+  const client = new OpenAI({ apiKey });
   const response = await client.chat.completions.create({
     model: MODEL,
     messages: [

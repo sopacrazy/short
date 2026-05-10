@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Download, Youtube, Share2, Copy, Rocket, Hash, AlignLeft, Loader2, Video, ExternalLink } from 'lucide-react';
 import { api, type ApiMetadata, type ApiScene } from '@/src/lib/api';
 import type { ProjectContext } from '@/src/types';
@@ -28,6 +28,7 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
   const [ytError, setYtError] = useState<string | null>(null);
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduledAt, setScheduledAt] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const popupRef = useRef<Window | null>(null);
 
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
         scheduleEnabled ? new Date(scheduledAt).toISOString() : undefined,
       );
       setYoutubeUrl(youtube_url);
+      setShowSuccessModal(true);
     } catch (err) {
       setYtError(err instanceof Error ? err.message : 'Erro ao publicar no YouTube');
     } finally {
@@ -356,6 +358,78 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showSuccessModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              onClick={() => setShowSuccessModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-lg bg-[#141415] border border-emerald-500/30 rounded-3xl p-8 shadow-[0_0_50px_rgba(16,185,129,0.15)] overflow-hidden"
+            >
+              {/* Background Glow */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[60px] rounded-full -z-10" />
+              
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 flex items-center justify-center mb-6">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+                </div>
+
+                <h3 className="text-2xl font-display font-bold text-white mb-2">
+                  {scheduleEnabled ? 'Vídeo Agendado!' : 'Publicado com Sucesso!'}
+                </h3>
+                <p className="text-gray-400 mb-8">
+                  {scheduleEnabled 
+                    ? `Seu Short foi agendado para o dia ${new Date(scheduledAt).toLocaleDateString()} às ${new Date(scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`
+                    : 'Seu Short já está disponível no YouTube e pronto para viralizar!'}
+                </p>
+
+                <div className="w-full bg-black/40 border border-white/5 rounded-2xl p-6 mb-8 text-left space-y-4">
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Título</p>
+                    <p className="text-sm font-medium text-white line-clamp-1">{metadata?.video_title}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Status</p>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <p className="text-sm font-medium text-emerald-400">{scheduleEnabled ? 'Agendado' : 'Publicado'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col w-full gap-3">
+                  {!scheduleEnabled && youtubeUrl && (
+                    <a
+                      href={youtubeUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-4 rounded-xl bg-emerald-500 text-black font-bold hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20"
+                    >
+                      <Youtube className="w-5 h-5" />
+                      Ver no YouTube
+                    </a>
+                  )}
+                  <button
+                    onClick={() => setShowSuccessModal(false)}
+                    className="w-full py-4 rounded-xl bg-white/5 border border-white/10 text-white font-medium hover:bg-white/10 transition-all"
+                  >
+                    Fechar Resumo
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

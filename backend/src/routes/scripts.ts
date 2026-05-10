@@ -3,11 +3,14 @@ import { supabase } from '../services/supabase.service.js';
 import { generateScript } from '../services/openai.service.js';
 import type { GenerateScriptRequest } from '../types/index.js';
 
+import { getUserAIKeys } from '../services/settings.service.js';
+
 const router = Router({ mergeParams: true });
 
 // POST /api/projects/:projectId/script — gerar roteiro com IA
-router.post('/', async (req, res) => {
+router.post('/', async (req: any, res) => {
   const { projectId } = req.params as { projectId: string };
+  const userId = req.user.id;
   const {
     topic,
     niche = 'curiosidades',
@@ -21,6 +24,10 @@ router.post('/', async (req, res) => {
 
   if (!topic) return res.status(400).json({ error: 'topic é obrigatório' });
 
+  // Verifica se o projeto pertence ao usuário
+  const { data: project } = await supabase.from('projects').select('id').eq('id', projectId).eq('user_id', userId).single();
+  if (!project) return res.status(403).json({ error: 'Não autorizado' });
+
   // Atualiza status
   await supabase
     .from('projects')
@@ -28,7 +35,8 @@ router.post('/', async (req, res) => {
     .eq('id', projectId);
 
   try {
-    const result = await generateScript(topic, niche, duration_target, voice_tone, narration_speed, previous_hook, previous_title, language);
+    const keys = await getUserAIKeys(userId);
+    const result = await generateScript(topic, niche, duration_target, voice_tone, narration_speed, previous_hook, previous_title, language, keys.openai_key);
 
     // Salva script
     const { data: scriptData, error: scriptError } = await supabase

@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { supabase } from '../services/supabase.service.js';
 import { generateImage } from '../services/flux.service.js';
 
+import { getUserAIKeys } from '../services/settings.service.js';
+
 const router = Router({ mergeParams: true });
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -10,12 +12,13 @@ const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 async function generateWithRetry(
   prompt: string,
   style: string,
-  maxRetries = 4
+  maxRetries = 4,
+  apiKey?: string | null
 ): Promise<string> {
   let lastError: Error = new Error('Erro desconhecido');
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const img = await generateImage(prompt, style);
+      const img = await generateImage(prompt, style, apiKey);
       return img.image_url;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
@@ -39,9 +42,14 @@ async function generateWithRetry(
 }
 
 // POST /api/projects/:projectId/images — gera imagens em SSE (stream por cena)
-router.post('/', async (req, res) => {
+router.post('/', async (req: any, res) => {
   const { projectId } = req.params as { projectId: string };
+  const userId = req.user.id;
   const { visual_style = 'cinematic' } = req.body as { visual_style?: string };
+
+  // Verifica se o projeto pertence ao usuário
+  const { data: project } = await supabase.from('projects').select('id').eq('id', projectId).eq('user_id', userId).single();
+  if (!project) return res.status(403).json({ error: 'Não autorizado' });
 
   const { data: scenes, error: scenesError } = await supabase
     .from('scenes')
@@ -86,7 +94,8 @@ router.post('/', async (req, res) => {
     });
 
     try {
-      const imageUrl = await generateWithRetry(scene.image_prompt, visual_style);
+      const keys = await getUserAIKeys(userId);
+      const imageUrl = await generateWithRetry(scene.image_prompt, visual_style, 4, keys.replicate_token);
 
       await supabase
         .from('scenes')
@@ -137,9 +146,14 @@ router.post('/', async (req, res) => {
 });
 
 // POST /api/projects/:projectId/images/:sceneId — regenerar imagem de uma cena
-router.post('/:sceneId', async (req, res) => {
-  const { sceneId } = req.params as { sceneId: string };
+router.post('/:sceneId', async (req: any, res) => {
+  const { projectId, sceneId } = req.params as { projectId: string; sceneId: string };
+  const userId = req.user.id;
   const { visual_style = 'cinematic' } = req.body as { visual_style?: string };
+
+  // Verifica se o projeto pertence ao usuário
+  const { data: project } = await supabase.from('projects').select('id').eq('id', projectId).eq('user_id', userId).single();
+  if (!project) return res.status(403).json({ error: 'Não autorizado' });
 
   const { data: scene, error } = await supabase
     .from('scenes')
@@ -150,7 +164,8 @@ router.post('/:sceneId', async (req, res) => {
   if (error || !scene) return res.status(404).json({ error: 'Cena não encontrada' });
 
   try {
-    const imageUrl = await generateWithRetry(scene.image_prompt, visual_style);
+    const keys = await getUserAIKeys(userId);
+    const imageUrl = await generateWithRetry(scene.image_prompt, visual_style, 4, keys.replicate_token);
 
     const { data: updated, error: updateError } = await supabase
       .from('scenes')
@@ -168,9 +183,14 @@ router.post('/:sceneId', async (req, res) => {
 });
 
 // POST /api/projects/:projectId/images/:sceneId/upload — upload de imagem manual para uma cena
-router.post('/:sceneId/upload', async (req, res) => {
-  const { projectId, sceneId } = req.params;
+router.post('/:sceneId/upload', async (req: any, res) => {
+  const { projectId, sceneId } = req.params as { projectId: string; sceneId: string };
+  const userId = req.user.id;
   const { imageBase64, mimeType } = req.body as { imageBase64?: string; mimeType?: string };
+
+  // Verifica se o projeto pertence ao usuário
+  const { data: project } = await supabase.from('projects').select('id').eq('id', projectId).eq('user_id', userId).single();
+  if (!project) return res.status(403).json({ error: 'Não autorizado' });
 
   if (!imageBase64 || !mimeType) {
     return res.status(400).json({ error: 'Imagem não fornecida' });

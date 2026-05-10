@@ -1,4 +1,4 @@
-import { Home, Video, FolderHeart, Settings, User, Zap, X } from 'lucide-react';
+import { Home, Video, FolderHeart, Settings, User, Zap, X, CheckCircle2, XCircle } from 'lucide-react';
 import { AppStep } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import React from 'react';
@@ -9,9 +9,10 @@ interface SidebarProps {
   onNavigateProjects: () => void;
   isOpen: boolean;
   onClose: () => void;
+  integrationsStatus: { ai: boolean; youtube: boolean };
 }
 
-export default function Sidebar({ currentStep, onNavigateHome, onNavigateProjects, isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ currentStep, onNavigateHome, onNavigateProjects, isOpen, onClose, integrationsStatus }: SidebarProps) {
   const handleNav = (fn?: () => void) => {
     fn?.();
     onClose();
@@ -48,15 +49,12 @@ export default function Sidebar({ currentStep, onNavigateHome, onNavigateProject
         </button>
 
         <div
-          className="flex items-center gap-2 mb-12 cursor-pointer hover:opacity-80 transition-opacity"
+          className="mb-12 cursor-pointer hover:opacity-80 transition-opacity"
           onClick={() => handleNav(onNavigateHome)}
           role="button"
           tabIndex={0}
         >
-          <ClipaiLogo className="w-10 h-10" />
-          <h1 className="font-display font-semibold text-xl tracking-tight">
-            Clip<span className="text-gradient">ai</span>
-          </h1>
+          <ClipaiLogo className="w-12 h-12" />
         </div>
 
         <nav className="flex-1 w-full px-4 space-y-2">
@@ -71,15 +69,55 @@ export default function Sidebar({ currentStep, onNavigateHome, onNavigateProject
           <NavItem icon={<Settings className="w-5 h-5" />} label="Preferências" isActive={false} />
         </nav>
 
-        <div className="w-full px-4 mt-auto">
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-[#7B61FF]/10 to-transparent border border-[#7B61FF]/20 flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-[#2A2A2D] flex items-center justify-center">
-                <User className="w-4 h-4 text-gray-300" />
+        <div className="w-full px-4 mt-auto mb-4">
+          <div className="p-4 rounded-2xl bg-[#1A1A1E] border border-white/5 space-y-4">
+            <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-1">Conexões</h4>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between group/status">
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${integrationsStatus.ai ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                  <span className="text-xs text-gray-400 group-hover/status:text-gray-200 transition-colors">Chaves de IA</span>
+                </div>
+                {integrationsStatus.ai ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                ) : (
+                  <span className="text-[10px] font-bold text-rose-500 uppercase">Pendente</span>
+                )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">Pro Creator</p>
-                <p className="text-xs text-[#00E5FF] truncate">Plano Premium</p>
+
+              <div className="flex items-center justify-between group/status">
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${integrationsStatus.youtube ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                  <span className="text-xs text-gray-400 group-hover/status:text-gray-200 transition-colors">YouTube</span>
+                </div>
+                {integrationsStatus.youtube ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                ) : (
+                  <button 
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      const win = window.open('about:blank', 'youtube_auth', 'width=600,height=700');
+                      if (!win) {
+                        alert('Por favor, permita pop-ups para vincular o YouTube.');
+                        return;
+                      }
+                      try {
+                        const { api } = await import('../lib/api');
+                        const { url } = await api.youtube.getAuthUrl();
+                        if (url) win.location.href = url;
+                        else win.close();
+                      } catch (err) {
+                        console.error('Erro ao vincular YouTube:', err);
+                        win.close();
+                        alert('Erro ao carregar link de autenticação.');
+                      }
+                    }}
+                    className="text-[10px] font-bold text-[#00E5FF] hover:underline cursor-pointer"
+                  >
+                    Vincular
+                  </button>
+                )}
               </div>
             </div>
           </div>

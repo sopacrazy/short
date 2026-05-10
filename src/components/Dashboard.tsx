@@ -183,6 +183,7 @@ export default function Dashboard({ onStartProject, onEditProject, onExportProje
                 statusLabel={STATUS_LABEL[p.status] ?? p.status}
                 date={timeAgo(p.created_at)}
                 thumbnailUrl={p.thumbnail_url ?? null}
+                youtubeUrl={p.youtube_url ?? null}
                 onDelete={() => setDeleteConfirm(p)}
                 onEdit={() => onEditProject(p)}
                 onView={p.status === 'completed' ? () => handleOpenPreview(p) : undefined}
@@ -360,13 +361,14 @@ function MetricCard({ icon, label, value }: { icon: React.ReactNode; label: stri
 }
 
 function HistoryItem({
-  title, status, statusLabel, date, thumbnailUrl, onDelete, onEdit, onView, onExport,
+  title, status, statusLabel, date, thumbnailUrl, youtubeUrl, onDelete, onEdit, onView, onExport,
 }: {
   title: string;
   status: 'done' | 'progress' | 'draft' | 'error';
   statusLabel: string;
   date: string;
   thumbnailUrl: string | null;
+  youtubeUrl: string | null;
   onDelete: () => void;
   onEdit: () => void;
   onView?: () => void;
@@ -405,6 +407,14 @@ function HistoryItem({
           <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {statusLabel}</span>
           <span>•</span>
           <span>{date}</span>
+          {youtubeUrl && (
+            <>
+              <span>•</span>
+              <span className="flex items-center gap-1 text-red-500 font-bold bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20 text-[9px] uppercase tracking-tighter">
+                <Youtube className="w-2.5 h-2.5" /> Publicado
+              </span>
+            </>
+          )}
         </div>
       </div>
 

@@ -2,15 +2,18 @@ import { Router } from 'express';
 import { getAuthUrl, exchangeCodeAndStore, isConnected, uploadToYouTube } from '../services/youtube.service.js';
 import { getSupabase } from '../services/supabase.service.js';
 
+import { authMiddleware } from '../middleware/auth.js';
+
 const router = Router();
 
 // GET /api/youtube/auth — retorna a URL de autenticação OAuth do Google
-router.get('/auth', (_req, res) => {
+router.get('/auth', authMiddleware, (req: any, res) => {
+  const userId = req.user.id;
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    return res.status(503).json({ error: 'YouTube não configurado. Adicione GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET no .env' });
+    return res.status(503).json({ error: 'YouTube não configurado.' });
   }
   try {
-    const url = getAuthUrl();
+    const url = getAuthUrl(userId);
     res.json({ url });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Erro ao gerar URL OAuth' });
@@ -19,7 +22,7 @@ router.get('/auth', (_req, res) => {
 
 // GET /api/youtube/callback — recebe o código do Google e salva os tokens
 router.get('/callback', async (req, res) => {
-  const { code, error } = req.query;
+  const { code, error, state: userId } = req.query;
 
   const closePopup = (status: 'connected' | 'error') => `
     <html>
@@ -33,12 +36,12 @@ router.get('/callback', async (req, res) => {
       </body>
     </html>`;
 
-  if (error || !code || typeof code !== 'string') {
+  if (error || !code || typeof code !== 'string' || !userId || typeof userId !== 'string') {
     return res.send(closePopup('error'));
   }
 
   try {
-    await exchangeCodeAndStore(code);
+    await exchangeCodeAndStore(code, userId);
     res.send(closePopup('connected'));
   } catch {
     res.send(closePopup('error'));
@@ -46,9 +49,10 @@ router.get('/callback', async (req, res) => {
 });
 
 // GET /api/youtube/status — verifica se há tokens salvos
-router.get('/status', async (_req, res) => {
+router.get('/status', authMiddleware, async (req: any, res) => {
+  const userId = req.user.id;
   try {
-    const connected = await isConnected();
+    const connected = await isConnected(userId);
     res.json({ connected });
   } catch {
     res.json({ connected: false });
@@ -56,14 +60,21 @@ router.get('/status', async (_req, res) => {
 });
 
 // POST /api/youtube/upload — publica o vídeo de um projeto no YouTube
-router.post('/upload', async (req, res) => {
+router.post('/upload', authMiddleware, async (req: any, res) => {
   const { projectId, scheduledAt } = req.body as { projectId?: string; scheduledAt?: string };
+  const userId = req.user.id;
   if (!projectId) return res.status(400).json({ error: 'projectId é obrigatório' });
+
+  const supabase = getSupabase();
+
+  // Verifica se o projeto pertence ao usuário
+  const { data: projectCheck } = await supabase.from('projects').select('user_id').eq('id', projectId).single();
+  if (!projectCheck || projectCheck.user_id !== userId) {
+    return res.status(403).json({ error: 'Não autorizado' });
+  }
 
   // Sem timeout — upload pode demorar para arquivos grandes
   req.socket.setTimeout(0);
-
-  const supabase = getSupabase();
 
   // Busca metadados + idioma do projeto via pasta
   const { data: metadata, error } = await supabase
@@ -76,7 +87,7 @@ router.post('/upload', async (req, res) => {
     return res.status(404).json({ error: 'Metadados não encontrados para este projeto' });
   }
   if (!metadata.video_url) {
-    return res.status(400).json({ error: 'Vídeo ainda não renderizado. Complete o Step 4 primeiro.' });
+    return res.status(400).json({ error: 'Vídeo ainda não renderizado.' });
   }
 
   // Resolve idioma e tags fixas da pasta do projeto
@@ -107,6 +118,7 @@ router.post('/upload', async (req, res) => {
       language,
       folderTags,
       scheduledAt,
+      userId,
     );
 
     await supabase
