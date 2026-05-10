@@ -44,6 +44,7 @@ export interface ApiMetadata {
   end_card_url?: string | null;
   soundtrack_url?: string | null;
   music_volume?: number;
+  youtube_url?: string | null;
 }
 
 export interface ApiProject {
@@ -64,6 +65,7 @@ export interface ApiFolder {
   color: string;
   default_voice_id: string | null;
   default_language: string | null;
+  default_youtube_tags: string[];
   created_at: string;
 }
 
@@ -227,10 +229,10 @@ export const api = {
   folders: {
     list: () => request<ApiFolder[]>('/folders'),
     get: (id: string) => request<ApiFolder>(`/folders/${id}`),
-    create: (name: string, emoji: string, color: string, defaultVoiceId?: string, defaultLanguage?: string) =>
+    create: (name: string, emoji: string, color: string, defaultVoiceId?: string, defaultLanguage?: string, defaultYoutubeTags?: string[]) =>
       request<ApiFolder>('/folders', {
         method: 'POST',
-        body: JSON.stringify({ name, emoji, color, default_voice_id: defaultVoiceId ?? null, default_language: defaultLanguage ?? 'pt' }),
+        body: JSON.stringify({ name, emoji, color, default_voice_id: defaultVoiceId ?? null, default_language: defaultLanguage ?? 'pt', default_youtube_tags: defaultYoutubeTags ?? [] }),
       }),
     update: (id: string, updates: Partial<Pick<ApiFolder, 'name' | 'emoji' | 'color' | 'default_voice_id' | 'default_language'>>) =>
       request<ApiFolder>(`/folders/${id}`, {
@@ -290,6 +292,16 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ soundtrack_url: soundtrackUrl, music_volume: volume })
       })
+  },
+
+  youtube: {
+    status: () => request<{ connected: boolean }>('/youtube/status'),
+    getAuthUrl: () => request<{ url: string }>('/youtube/auth'),
+    upload: (projectId: string, scheduledAt?: string) =>
+      request<{ youtube_url: string }>('/youtube/upload', {
+        method: 'POST',
+        body: JSON.stringify({ projectId, scheduledAt }),
+      }),
   },
 
   health: () => request<{ status: string; services: Record<string, boolean> }>('/health'),

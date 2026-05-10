@@ -17,6 +17,7 @@ import narrationRouter from './routes/narration.js';
 import imagesRouter from './routes/images.js';
 import renderRouter from './routes/render.js';
 import foldersRouter from './routes/folders.js';
+import youtubeRouter from './routes/youtube.js';
 import { listVoices } from './services/elevenlabs.service.js';
 
 const app = express();
@@ -43,6 +44,7 @@ app.get('/api/health', (_req, res) => {
       elevenlabs: !!process.env.ELEVENLABS_API_KEY,
       replicate: !!process.env.REPLICATE_API_TOKEN,
       supabase: !!process.env.SUPABASE_URL,
+      youtube: !!process.env.GOOGLE_CLIENT_ID,
     },
   });
 });
@@ -70,6 +72,7 @@ app.post('/api/topics/suggestions', async (req, res) => {
 });
 
 app.use('/api/folders', foldersRouter);
+app.use('/api/youtube', youtubeRouter);
 
 // Servir a trilha sonora padrão da raiz
 app.get('/api/static/suspense.mp3', (req, res) => {

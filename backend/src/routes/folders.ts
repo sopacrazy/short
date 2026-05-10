@@ -24,12 +24,11 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { name, emoji = '📁', color = '#7B61FF', default_voice_id, default_language } =
-    req.body as { name?: string; emoji?: string; color?: string; default_voice_id?: string | null; default_language?: string };
+  const { name, emoji = '📁', color = '#7B61FF', default_voice_id, default_language, default_youtube_tags } =
+    req.body as { name?: string; emoji?: string; color?: string; default_voice_id?: string | null; default_language?: string; default_youtube_tags?: string[] };
   if (!name?.trim()) return res.status(400).json({ error: 'name é obrigatório' });
 
-  // Tenta inserir com colunas de voz/idioma; faz fallback sem elas se a migration ainda não foi rodada
-  const full = { name: name.trim(), emoji, color, default_voice_id: default_voice_id ?? null, default_language: default_language ?? 'pt' };
+  const full = { name: name.trim(), emoji, color, default_voice_id: default_voice_id ?? null, default_language: default_language ?? 'pt', default_youtube_tags: default_youtube_tags ?? [] };
   let result = await supabase.from('folders').insert(full).select().single();
   if (result.error) {
     result = await supabase.from('folders').insert({ name: name.trim(), emoji, color }).select().single();
@@ -45,7 +44,7 @@ router.patch('/:id', async (req, res) => {
   // Tenta atualizar com todos os campos; se falhar (colunas ainda não existem), tenta só com os campos base
   let result = await supabase.from('folders').update(updates).eq('id', id).select().single();
   if (result.error) {
-    const { default_voice_id: _v, default_language: _l, ...base } = updates;
+    const { default_voice_id: _v, default_language: _l, default_youtube_tags: _t, ...base } = updates;
     result = await supabase.from('folders').update(base).eq('id', id).select().single();
   }
   if (result.error) return res.status(500).json({ error: result.error.message });

@@ -109,6 +109,7 @@ CREATE TABLE IF NOT EXISTS folders (
 -- Migração incremental: adicionar colunas de config à tabela folders (se já existir)
 ALTER TABLE folders ADD COLUMN IF NOT EXISTS default_voice_id TEXT;
 ALTER TABLE folders ADD COLUMN IF NOT EXISTS default_language TEXT NOT NULL DEFAULT 'pt';
+ALTER TABLE folders ADD COLUMN IF NOT EXISTS default_youtube_tags TEXT[] NOT NULL DEFAULT '{}';
 
 -- Migração incremental: adicionar folder_id à tabela projects (se já existir)
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS folder_id UUID REFERENCES folders(id) ON DELETE SET NULL;
@@ -147,6 +148,20 @@ CREATE TRIGGER trg_projects_updated_at
 --   Nome: videos → Public: SIM
 
 -- ============================================================
+-- YOUTUBE TOKENS (linha única — app de usuário único)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS youtube_tokens (
+  id            INTEGER     PRIMARY KEY,
+  access_token  TEXT        NOT NULL,
+  refresh_token TEXT,
+  expiry_date   BIGINT,
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Migração: youtube_url em export_metadata
+ALTER TABLE export_metadata ADD COLUMN IF NOT EXISTS youtube_url TEXT;
+
+-- ============================================================
 -- RLS (Row Level Security) — desabilitado para começar
 -- Habilite quando implementar autenticação de usuários
 -- ============================================================
@@ -155,3 +170,4 @@ ALTER TABLE scripts         DISABLE ROW LEVEL SECURITY;
 ALTER TABLE scenes          DISABLE ROW LEVEL SECURITY;
 ALTER TABLE narrations      DISABLE ROW LEVEL SECURITY;
 ALTER TABLE export_metadata DISABLE ROW LEVEL SECURITY;
+ALTER TABLE youtube_tokens  DISABLE ROW LEVEL SECURITY;

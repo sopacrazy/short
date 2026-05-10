@@ -91,6 +91,7 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
   const [newFolderColor, setNewFolderColor] = useState('#7B61FF');
   const [newFolderVoice, setNewFolderVoice] = useState('');
   const [newFolderLang, setNewFolderLang] = useState('pt');
+  const [newFolderYtTags, setNewFolderYtTags] = useState('');
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
 
   const [editingFolder, setEditingFolder] = useState<ApiFolder | null>(null);
@@ -99,6 +100,7 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
   const [editColor, setEditColor] = useState('');
   const [editVoice, setEditVoice] = useState('');
   const [editLang, setEditLang] = useState('pt');
+  const [editYtTags, setEditYtTags] = useState('');
   const [isSavingFolder, setIsSavingFolder] = useState(false);
 
   const [deleteFolder, setDeleteFolder] = useState<ApiFolder | null>(null);
@@ -136,18 +138,21 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
   const projectCountInFolder = (folderId: string) =>
     projects.filter(p => p.folder_id === folderId).length;
 
+  const parseYtTags = (raw: string) =>
+    raw.split(',').map(t => t.trim()).filter(Boolean);
+
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
     setIsCreatingFolder(true);
     try {
       const folder = await api.folders.create(
         newFolderName.trim(), newFolderEmoji, newFolderColor,
-        newFolderVoice || undefined, newFolderLang,
+        newFolderVoice || undefined, newFolderLang, parseYtTags(newFolderYtTags),
       );
       setFolders(prev => [...prev, folder]);
       setShowCreateFolder(false);
       setNewFolderName(''); setNewFolderEmoji('📁'); setNewFolderColor('#7B61FF');
-      setNewFolderVoice(''); setNewFolderLang('pt');
+      setNewFolderVoice(''); setNewFolderLang('pt'); setNewFolderYtTags('');
     } catch { /* ignore */ }
     finally { setIsCreatingFolder(false); }
   };
@@ -160,6 +165,7 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
         name: editName, emoji: editEmoji, color: editColor,
         default_voice_id: editVoice || null,
         default_language: editLang,
+        default_youtube_tags: parseYtTags(editYtTags),
       });
       setFolders(prev => prev.map(f => f.id === updated.id ? updated : f));
       setEditingFolder(null);
@@ -337,6 +343,7 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
                     setEditColor(folder.color);
                     setEditVoice(folder.default_voice_id ?? '');
                     setEditLang(folder.default_language ?? 'pt');
+                    setEditYtTags((folder.default_youtube_tags ?? []).join(', '));
                   }}
                   className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-sm font-medium transition-colors border border-white/5"
                 >
@@ -466,6 +473,30 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
                 </div>
               </div>
 
+              {/* YouTube */}
+              <div className="pt-2 border-t border-[#ffffff0a]">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <Youtube className="w-3.5 h-3.5 text-red-500" /> YouTube
+                </p>
+                <div>
+                  <label className="text-xs text-gray-400 mb-1.5 block">Tags fixas do canal (separadas por vírgula)</label>
+                  <textarea
+                    rows={2}
+                    placeholder="curiosidades, datos interesantes, sabias que..."
+                    value={newFolderYtTags}
+                    onChange={e => setNewFolderYtTags(e.target.value)}
+                    className="w-full bg-[#0A0A0B] border border-[#ffffff15] rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-red-500/40 resize-none"
+                  />
+                  {newFolderYtTags.trim() && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {parseYtTags(newFolderYtTags).map(t => (
+                        <span key={t} className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 text-xs border border-red-500/20">{t}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setShowCreateFolder(false)} className="flex-1 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-medium transition-colors">
                   Cancelar
@@ -555,6 +586,30 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
+
+              {/* YouTube */}
+              <div className="pt-2 border-t border-[#ffffff0a]">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <Youtube className="w-3.5 h-3.5 text-red-500" /> YouTube
+                </p>
+                <div>
+                  <label className="text-xs text-gray-400 mb-1.5 block">Tags fixas do canal (separadas por vírgula)</label>
+                  <textarea
+                    rows={2}
+                    placeholder="curiosidades, datos interesantes, sabias que..."
+                    value={editYtTags}
+                    onChange={e => setEditYtTags(e.target.value)}
+                    className="w-full bg-[#0A0A0B] border border-[#ffffff15] rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-red-500/40 resize-none"
+                  />
+                  {editYtTags.trim() && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {parseYtTags(editYtTags).map(t => (
+                        <span key={t} className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 text-xs border border-red-500/20">{t}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
