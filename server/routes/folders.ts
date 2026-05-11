@@ -10,6 +10,7 @@ router.get('/', async (req: any, res) => {
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
+    
   if (error) return res.status(500).json({ error: error.message });
   return res.json(data ?? []);
 });

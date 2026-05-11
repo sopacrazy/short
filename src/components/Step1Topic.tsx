@@ -18,6 +18,10 @@ const CATEGORIES = [
   { emoji: '🚀', title: 'Mistérios da NASA', niche: 'espaço' },
   { emoji: '🦖', title: 'Animais perigosos', niche: 'natureza' },
   { emoji: '👁️', title: 'Teorias da conspiração', niche: 'conspiração' },
+  { emoji: '🧠', title: 'Psicologia Sombria', niche: 'curiosidades' },
+  { emoji: '🌋', title: 'Desastres Naturais', niche: 'natureza' },
+  { emoji: '🕰️', title: 'Mistérios da História', niche: 'história' },
+  { emoji: '🧟', title: 'Lendas Urbanas', niche: 'mistério' },
 ];
 
 export default function Step1Topic({ onNext, onAutoGenerate, folderContext }: Step1TopicProps) {
@@ -39,7 +43,7 @@ export default function Step1Topic({ onNext, onAutoGenerate, folderContext }: St
     setCurrentQuery(query);
     setView('themes');
     try {
-      const result = await api.topics.suggestions(query, 5);
+      const result = await api.topics.suggestions(query, 10);
       setThemes(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao gerar temas');
@@ -131,7 +135,7 @@ export default function Step1Topic({ onNext, onAutoGenerate, folderContext }: St
         {view === 'main' ? (
           <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <h3 className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-6">Categorias em Alta</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               {CATEGORIES.map((cat, i) => (
                 <button
                   key={cat.title}
@@ -167,12 +171,12 @@ export default function Step1Topic({ onNext, onAutoGenerate, folderContext }: St
             </div>
 
             {isLoadingThemes ? (
-              <div className="flex flex-col items-center justify-center py-24 gap-6">
-                <div className="w-16 h-16 rounded-full border-2 border-ai-primary/20 border-t-ai-primary animate-spin" />
-                <p className="text-gray-500 font-medium">Nossa IA está criando 5 temas épicos para você...</p>
+              <div className="flex flex-col items-center justify-center py-24 gap-6 text-ai-primary">
+                <Sparkles className="w-12 h-12 animate-pulse" />
+                <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px]">Nossa IA está criando 10 temas épicos para você...</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {themes.map((theme, i) => {
                   const isSelected = selectedTheme === theme;
                   return (

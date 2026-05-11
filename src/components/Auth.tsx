@@ -8,7 +8,6 @@ interface AuthProps {
 }
 
 export default function Auth({ onSession }: AuthProps) {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,9 +19,7 @@ export default function Auth({ onSession }: AuthProps) {
     setError(null);
 
     try {
-      const { error: authError } = isLogin 
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password });
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
       if (authError) throw authError;
       onSession();
@@ -114,27 +111,11 @@ export default function Auth({ onSession }: AuthProps) {
 
           <div className="space-y-4">
             <h2 className="text-3xl font-display font-bold text-white tracking-tight">
-              {isLogin ? 'Bem-vindo de volta' : 'Crie sua conta'}
+              Acesso Restrito
             </h2>
             <p className="text-gray-500 font-medium">
-              {isLogin ? 'Entre para gerenciar seus vídeos cinematográficos.' : 'Comece sua jornada na produção automatizada hoje.'}
+              Entre para gerenciar seus vídeos cinematográficos.
             </p>
-          </div>
-
-          {/* Tab Switcher - Nucleus Style */}
-          <div className="flex p-1.5 bg-white/5 rounded-2xl border border-white/5">
-            <button
-              onClick={() => setIsLogin(true)}
-              className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${isLogin ? 'bg-white text-black shadow-lg shadow-white/5' : 'text-gray-500 hover:text-white'}`}
-            >
-              Entrar
-            </button>
-            <button
-              onClick={() => setIsLogin(false)}
-              className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${!isLogin ? 'bg-white text-black shadow-lg shadow-white/5' : 'text-gray-500 hover:text-white'}`}
-            >
-              Registrar
-            </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -154,7 +135,7 @@ export default function Auth({ onSession }: AuthProps) {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] ml-1">E-mail corporativo</label>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] ml-1">E-mail</label>
                 <div className="relative group/input">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 group-focus-within/input:text-ai-primary transition-colors" />
                   <input
@@ -170,8 +151,7 @@ export default function Auth({ onSession }: AuthProps) {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between ml-1">
-                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Senha de acesso</label>
-                  {isLogin && <button type="button" className="text-[10px] font-bold text-ai-primary/60 hover:text-ai-primary uppercase tracking-widest transition-colors">Esqueci a senha</button>}
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Senha</label>
                 </div>
                 <div className="relative group/input">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 group-focus-within/input:text-ai-primary transition-colors" />
@@ -196,7 +176,7 @@ export default function Auth({ onSession }: AuthProps) {
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
-                  <span>{isLogin ? 'Entrar na Plataforma' : 'Criar minha Conta'}</span>
+                  <span>Entrar na Plataforma</span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </>
               )}

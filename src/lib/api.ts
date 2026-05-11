@@ -46,6 +46,7 @@ export interface ApiMetadata {
   soundtrack_url?: string | null;
   music_volume?: number;
   youtube_url?: string | null;
+  instagram_url?: string | null;
 }
 
 export interface ApiProject {
@@ -58,6 +59,7 @@ export interface ApiProject {
   thumbnail_url?: string | null;
   folder_id?: string | null;
   youtube_url?: string | null;
+  instagram_url?: string | null;
 }
 
 export interface ApiFolder {
@@ -68,6 +70,8 @@ export interface ApiFolder {
   default_voice_id: string | null;
   default_language: string | null;
   default_youtube_tags: string[];
+  auto_publish_youtube: boolean;
+  auto_publish_instagram: boolean;
   created_at: string;
 }
 
@@ -283,7 +287,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ name, emoji, color, default_voice_id: defaultVoiceId ?? null, default_language: defaultLanguage ?? 'pt', default_youtube_tags: defaultYoutubeTags ?? [] }),
       }),
-    update: (id: string, updates: Partial<Pick<ApiFolder, 'name' | 'emoji' | 'color' | 'default_voice_id' | 'default_language' | 'default_youtube_tags'>>) =>
+    update: (id: string, updates: Partial<ApiFolder>) =>
       request<ApiFolder>(`/folders/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(updates),
@@ -350,6 +354,16 @@ export const api = {
       request<{ youtube_url: string }>('/youtube/upload', {
         method: 'POST',
         body: JSON.stringify({ projectId, scheduledAt }),
+      }),
+  },
+  
+  instagram: {
+    status: () => request<{ connected: boolean; username?: string }>('/instagram/status'),
+    upload: (projectId: string, caption?: string) =>
+      request<{ instagram_url: string }>('/instagram/upload', {
+        method: 'POST',
+        body: JSON.stringify({ projectId, caption }),
+        timeout: 300000, // 5 minutos (polling)
       }),
   },
 

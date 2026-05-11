@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus, Folder, Trash2, Pencil, X, Loader2,
-  Play, Clapperboard, Youtube, Settings2,
+  Play, Clapperboard, Youtube, Instagram, Settings2,
   Clock, Hash, Palette, FolderPlus,
-  Share2, ChevronRight, Eye
+  Share2, ChevronRight, Eye, Mic2, Languages, Zap, CheckCircle
 } from 'lucide-react';
 import { api, type ApiProject, type ApiFolder, type Voice } from '@/src/lib/api';
 
@@ -25,7 +25,8 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
   const [showFolderSettings, setShowFolderSettings] = useState<ApiFolder | null>(null);
   const [moveProject, setMoveProject] = useState<ApiProject | null>(null);
   const [editFolder, setEditFolder] = useState({ 
-    name: '', emoji: '', color: '', voiceId: '', lang: '', tags: '' 
+    name: '', emoji: '', color: '', voiceId: '', lang: '', tags: '',
+    autoPublishYoutube: false, autoPublishInstagram: false
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [deleteProject, setDeleteProject] = useState<ApiProject | null>(null);
@@ -64,7 +65,9 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
         color: editFolder.color,
         default_voice_id: editFolder.voiceId || null,
         default_language: editFolder.lang,
-        default_youtube_tags: tagsArray
+        default_youtube_tags: tagsArray,
+        auto_publish_youtube: editFolder.autoPublishYoutube,
+        auto_publish_instagram: editFolder.autoPublishInstagram
       });
       setFolders(prev => prev.map(f => f.id === updated.id ? updated : f));
       setShowFolderSettings(null);
@@ -98,7 +101,8 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
                 folderName: selectedFolder.name,
                 folderEmoji: selectedFolder.emoji,
                 defaultVoiceId: selectedFolder.default_voice_id ?? undefined,
-                defaultLanguage: selectedFolder.default_language ?? 'pt'
+                defaultLanguage: selectedFolder.default_language ?? 'pt',
+                defaultTags: selectedFolder.default_youtube_tags ?? []
               } : undefined;
               onStartProject(defaults);
             }} 
@@ -141,7 +145,9 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
                 color: selectedFolder.color,
                 voiceId: selectedFolder.default_voice_id || '',
                 lang: selectedFolder.default_language || 'pt',
-                tags: selectedFolder.default_youtube_tags?.join(', ') || ''
+                tags: selectedFolder.default_youtube_tags?.join(', ') || '',
+                autoPublishYoutube: selectedFolder.auto_publish_youtube ?? false,
+                autoPublishInstagram: selectedFolder.auto_publish_instagram ?? false
               });
               setShowFolderSettings(selectedFolder);
             }} 
@@ -215,43 +221,199 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
         )}
 
         {showFolderSettings && (
-           <ModalOverlay onClose={() => setShowFolderSettings(null)}>
-            <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                <div className="flex items-center gap-3">
-                  <Settings2 className="w-5 h-5 text-ai-primary" />
-                  <h3 className="text-lg font-bold">Configurações</h3>
+           <ModalOverlay onClose={() => setShowFolderSettings(null)} className="max-w-3xl">
+            <div className="space-y-8">
+              {/* Header com Design de Camadas */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-ai-primary/10 flex items-center justify-center text-ai-primary border border-ai-primary/20 shadow-lg shadow-ai-primary/5">
+                    <Settings2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-display font-bold text-white tracking-tight">Ajustes da Pasta</h3>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">Configure automação e padrões</p>
+                  </div>
                 </div>
-                <button onClick={async () => {
-                  if (confirm('Deletar pasta?')) {
-                    await api.folders.delete(showFolderSettings.id);
-                    setFolders(prev => prev.filter(f => f.id !== showFolderSettings.id));
-                    setSelectedFolderId(null);
-                    setShowFolderSettings(null);
-                  }
-                }} className="text-rose-500 p-2 hover:bg-rose-500/10 rounded-lg transition-colors">
-                  <Trash2 className="w-4 h-4" />
+                <button 
+                  onClick={async () => {
+                    if (confirm('Deseja excluir permanentemente esta pasta e todos os seus vídeos?')) {
+                      await api.folders.delete(showFolderSettings.id);
+                      setFolders(prev => prev.filter(f => f.id !== showFolderSettings.id));
+                      setSelectedFolderId(null);
+                      setShowFolderSettings(null);
+                    }
+                  }} 
+                  className="p-3 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white rounded-2xl transition-all duration-300 group border border-rose-500/20"
+                  title="Excluir Pasta"
+                >
+                  <Trash2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 </button>
               </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-4 gap-3">
-                   <div className="col-span-1 space-y-1">
-                    <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Ícone</label>
-                    <input type="text" value={editFolder.emoji} onChange={e => setEditFolder({ ...editFolder, emoji: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-center" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Coluna 1: Identidade e Automação */}
+                <div className="space-y-6">
+                  {/* Card: Identidade */}
+                  <div className="p-6 rounded-[2rem] bg-white/[0.02] border border-white/5 space-y-4">
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-2">
+                      <Palette className="w-3.5 h-3.5" /> Identidade Visual
+                    </div>
+                    <div className="grid grid-cols-4 gap-4">
+                       <div className="col-span-1 space-y-2">
+                        <label className="text-[9px] font-bold text-gray-500 uppercase ml-1">Emoji</label>
+                        <input 
+                          type="text" value={editFolder.emoji} 
+                          onChange={e => setEditFolder({ ...editFolder, emoji: e.target.value })} 
+                          className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-center text-xl focus:border-ai-primary/50 transition-all outline-none" 
+                        />
+                      </div>
+                      <div className="col-span-3 space-y-2">
+                        <label className="text-[9px] font-bold text-gray-500 uppercase ml-1">Nome da Pasta</label>
+                        <input 
+                          type="text" value={editFolder.name} 
+                          onChange={e => setEditFolder({ ...editFolder, name: e.target.value })} 
+                          className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-sm font-bold text-white focus:border-ai-primary/50 transition-all outline-none" 
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="col-span-3 space-y-1">
-                    <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Nome</label>
-                    <input type="text" value={editFolder.name} onChange={e => setEditFolder({ ...editFolder, name: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold" />
+
+                  {/* Card: Automação */}
+                  <div className="p-6 rounded-[2rem] bg-white/[0.02] border border-white/5 space-y-4">
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-4">
+                      <Zap className="w-3.5 h-3.5" /> Automação de Postagem
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <label className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer group ${editFolder.autoPublishYoutube ? 'bg-red-500/5 border-red-500/20' : 'bg-black/20 border-white/5 hover:border-white/10'}`}>
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${editFolder.autoPublishYoutube ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-white/5 text-gray-600'}`}>
+                            <Youtube className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className={`text-xs font-bold transition-colors ${editFolder.autoPublishYoutube ? 'text-white' : 'text-gray-400 group-hover:text-gray-300'}`}>YouTube Shorts</p>
+                            <p className="text-[9px] text-gray-500 font-medium">Publicação Automática</p>
+                          </div>
+                        </div>
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${editFolder.autoPublishYoutube ? 'bg-red-500 border-red-500' : 'border-white/10'}`}>
+                          <input 
+                            type="checkbox" checked={editFolder.autoPublishYoutube} 
+                            onChange={e => setEditFolder({ ...editFolder, autoPublishYoutube: e.target.checked })}
+                            className="hidden" 
+                          />
+                          {editFolder.autoPublishYoutube && <CheckCircle className="w-4 h-4 text-white" />}
+                        </div>
+                      </label>
+
+                      <label className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer group ${editFolder.autoPublishInstagram ? 'bg-pink-500/5 border-pink-500/20' : 'bg-black/20 border-white/5 hover:border-white/10'}`}>
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${editFolder.autoPublishInstagram ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/20' : 'bg-white/5 text-gray-600'}`}>
+                            <Instagram className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className={`text-xs font-bold transition-colors ${editFolder.autoPublishInstagram ? 'text-white' : 'text-gray-400 group-hover:text-gray-300'}`}>Instagram Reels</p>
+                            <p className="text-[9px] text-gray-500 font-medium">Publicação Automática</p>
+                          </div>
+                        </div>
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${editFolder.autoPublishInstagram ? 'bg-pink-500 border-pink-500' : 'border-white/10'}`}>
+                          <input 
+                            type="checkbox" checked={editFolder.autoPublishInstagram} 
+                            onChange={e => setEditFolder({ ...editFolder, autoPublishInstagram: e.target.checked })}
+                            className="hidden" 
+                          />
+                          {editFolder.autoPublishInstagram && <CheckCircle className="w-4 h-4 text-white" />}
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 </div>
-                {/* ... existing settings fields ... */}
+
+                {/* Coluna 2: Padrões de Produção */}
+                <div className="space-y-6">
+                  <div className="p-8 rounded-[2.5rem] bg-gradient-to-br from-ai-primary/[0.03] to-transparent border border-ai-primary/10 space-y-6 h-full flex flex-col">
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-ai-primary uppercase tracking-widest mb-2">
+                      <Clapperboard className="w-3.5 h-3.5" /> Padrões de Geração
+                    </div>
+
+                    <div className="space-y-5 flex-1">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-2">
+                          <Mic2 className="w-3 h-3" /> Narrador ElevenLabs
+                        </label>
+                        <div className="relative group">
+                          <select 
+                            value={editFolder.voiceId}
+                            onChange={e => setEditFolder({ ...editFolder, voiceId: e.target.value })}
+                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-sm font-bold text-white appearance-none cursor-pointer focus:border-ai-primary/50 transition-all outline-none pr-10"
+                          >
+                            <option value="">Nenhum (Usar padrão)</option>
+                            {voices.map(v => (
+                              <option key={v.voice_id} value={v.voice_id}>{v.name}</option>
+                            ))}
+                          </select>
+                          <ChevronRight className="w-4 h-4 text-gray-500 absolute right-4 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none transition-transform group-hover:text-white" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-2">
+                          <Languages className="w-3 h-3" /> Idioma dos Scripts
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { id: 'pt', label: 'Português', icon: '🇧🇷' },
+                            { id: 'en', label: 'Inglês', icon: '🇺🇸' },
+                            { id: 'es', label: 'Espanhol', icon: '🇪🇸' }
+                          ].map(l => (
+                            <button
+                              key={l.id}
+                              onClick={() => setEditFolder({ ...editFolder, lang: l.id })}
+                              className={`py-3 rounded-xl border text-[10px] font-bold uppercase transition-all ${editFolder.lang === l.id ? 'bg-ai-primary border-ai-primary text-white shadow-lg shadow-ai-primary/20' : 'bg-black/20 border-white/5 text-gray-500 hover:border-white/10'}`}
+                            >
+                              <span className="mr-1">{l.icon}</span> {l.id}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-2">
+                          <Hash className="w-3 h-3" /> Hashtags Padrão
+                        </label>
+                        <textarea 
+                          value={editFolder.tags}
+                          onChange={e => setEditFolder({ ...editFolder, tags: e.target.value })}
+                          rows={4}
+                          placeholder="Ex: curiosidades, fatos, sabiondo..."
+                          className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-xs font-medium text-gray-300 resize-none focus:border-ai-primary/50 transition-all outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex gap-3 pt-4 border-t border-white/5">
-                <button onClick={() => setShowFolderSettings(null)} className="flex-1 py-3 text-xs font-bold text-gray-500">Cancelar</button>
-                <button onClick={handleUpdateFolder} disabled={isProcessing} className="flex-1 py-3 bg-ai-primary text-white rounded-xl text-xs font-bold">
-                  {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Salvar'}
+              {/* Ações Finais */}
+              <div className="flex items-center gap-4 pt-6 border-t border-white/5">
+                <button 
+                  onClick={() => setShowFolderSettings(null)} 
+                  className="flex-1 py-4 text-xs font-bold text-gray-500 uppercase tracking-widest hover:text-white transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleUpdateFolder} 
+                  disabled={isProcessing} 
+                  className="flex-[2] py-4 bg-gradient-to-r from-ai-primary to-ai-secondary text-white rounded-2xl text-sm font-bold shadow-xl shadow-ai-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                >
+                  {isProcessing ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5" />
+                      <span>Salvar Configurações</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -379,7 +541,10 @@ function ProjectCard({ project, index, onEdit, onDelete, onExport, onMove }: any
             <span className="text-[9px] text-gray-500 font-bold flex items-center gap-1.5 uppercase tracking-tighter">
               <Clock className="w-3 h-3" /> {new Date(project.created_at).toLocaleDateString()}
             </span>
-            {project.youtube_url && <Youtube className="w-3.5 h-3.5 text-red-600" />}
+            <div className="flex items-center gap-2">
+              {project.youtube_url && <Youtube className="w-3.5 h-3.5 text-red-600" />}
+              {project.instagram_url && <Instagram className="w-3.5 h-3.5 text-pink-500" />}
+            </div>
           </div>
         </div>
       </div>
@@ -387,11 +552,11 @@ function ProjectCard({ project, index, onEdit, onDelete, onExport, onMove }: any
   );
 }
 
-function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+function ModalOverlay({ children, onClose, className = "max-w-sm" }: { children: React.ReactNode; onClose: () => void, className?: string }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={onClose} />
-      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-[#0A0A0B] border border-white/10 p-8 rounded-[2.5rem] max-w-sm w-full shadow-2xl overflow-hidden">
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className={`relative bg-[#0A0A0B] border border-white/10 p-8 rounded-[2.5rem] w-full shadow-2xl overflow-hidden ${className}`}>
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-ai-primary to-ai-secondary" />
         {children}
       </motion.div>

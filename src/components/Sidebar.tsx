@@ -9,7 +9,7 @@ interface SidebarProps {
   onNavigateProjects: () => void;
   isOpen: boolean;
   onClose: () => void;
-  integrationsStatus: { ai: boolean; youtube: boolean };
+  integrationsStatus: { ai: boolean; youtube: boolean; instagram: boolean };
 }
 
 export default function Sidebar({ currentStep, onNavigateHome, onNavigateProjects, isOpen, onClose, integrationsStatus }: SidebarProps) {
@@ -84,6 +84,16 @@ export default function Sidebar({ currentStep, onNavigateHome, onNavigateProject
                   <span className="text-xs text-gray-500 group-hover/status:text-gray-300 transition-colors">YouTube</span>
                 </div>
                 {!integrationsStatus.youtube && (
+                  <button className="text-[10px] font-bold text-[#00E5FF] hover:brightness-110 transition-all">CONECTAR</button>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between group/status">
+                <div className="flex items-center gap-2">
+                  <div className={`w-1.5 h-1.5 rounded-full ${integrationsStatus.instagram ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500'}`} />
+                  <span className="text-xs text-gray-500 group-hover/status:text-gray-300 transition-colors">Instagram</span>
+                </div>
+                {!integrationsStatus.instagram && (
                   <button className="text-[10px] font-bold text-[#00E5FF] hover:brightness-110 transition-all">CONECTAR</button>
                 )}
               </div>

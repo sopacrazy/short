@@ -17,6 +17,7 @@ import imagesRouter from './routes/images.js';
 import renderRouter from './routes/render.js';
 import foldersRouter from './routes/folders.js';
 import youtubeRouter from './routes/youtube.js';
+import instagramRouter from './routes/instagram.js';
 import { listVoices } from './services/elevenlabs.service.js';
 import { authMiddleware } from './middleware/auth.js';
 
@@ -54,6 +55,7 @@ app.get('/api/health', (_req, res) => {
       replicate: !!process.env.REPLICATE_API_TOKEN,
       supabase: !!process.env.SUPABASE_URL,
       youtube: !!process.env.GOOGLE_CLIENT_ID,
+      instagram: !!process.env.INSTAGRAM_ACCESS_TOKEN,
     },
   });
 });
@@ -88,6 +90,7 @@ app.post('/api/topics/suggestions', authMiddleware, async (req: any, res) => {
 
 app.use('/api/folders', authMiddleware, foldersRouter);
 app.use('/api/youtube', youtubeRouter);
+app.use('/api/instagram', instagramRouter);
 
 // Servir a trilha sonora padrão da raiz
 app.get('/api/static/suspense.mp3', (req, res) => {
@@ -149,7 +152,8 @@ if (process.env.VERCEL !== '1') {
     console.log(`   ${process.env.OPENAI_API_KEY      ? '✅' : '❌'} OpenAI`);
     console.log(`   ${process.env.ELEVENLABS_API_KEY  ? '✅' : '❌'} ElevenLabs`);
     console.log(`   ${process.env.REPLICATE_API_TOKEN ? '✅' : '❌'} Replicate (Flux)`);
-    console.log(`   ${process.env.SUPABASE_URL        ? '✅' : '❌'} Supabase\n`);
+    console.log(`   ${process.env.SUPABASE_URL        ? '✅' : '❌'} Supabase`);
+    console.log(`   ${process.env.INSTAGRAM_ACCESS_TOKEN ? '✅' : '❌'} Instagram\n`);
   });
 }
 

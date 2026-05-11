@@ -35,7 +35,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const [pendingFolderDefaults, setPendingFolderDefaults] = useState<FolderDefaults | null>(null);
-  const [integrationsStatus, setIntegrationsStatus] = useState({ ai: false, youtube: false });
+  const [integrationsStatus, setIntegrationsStatus] = useState({ ai: false, youtube: false, instagram: false });
 
   const notify = (message: string, type: ToastType = 'info') => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -64,13 +64,15 @@ export default function App() {
 
   const checkIntegrations = async () => {
     try {
-      const [voices, yt] = await Promise.all([
+      const [voices, yt, insta] = await Promise.all([
         api.narration.voices().catch(() => []),
         api.youtube.status().catch(() => ({ connected: false })),
+        api.instagram.status().catch(() => ({ connected: false })),
       ]);
       setIntegrationsStatus({
         ai: voices.length > 0,
         youtube: yt.connected,
+        instagram: insta.connected,
       });
     } catch (err) {
       console.error('Error checking integrations:', err);

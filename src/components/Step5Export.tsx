@@ -23,6 +23,17 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduledAt, setScheduledAt] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  
+  // Instagram States
+  const [instaConnected, setInstaConnected] = useState(false);
+  const [isPublishingInsta, setIsPublishingInsta] = useState(false);
+  const [instagramUrl, setInstagramUrl] = useState<string | null>(null);
+  const [instaError, setInstaError] = useState<string | null>(null);
+  const [instaSuccess, setInstaSuccess] = useState(false);
+
+  // Folder/Multi-publish states
+  const [folderConfig, setFolderConfig] = useState<{yt: boolean, insta: boolean} | null>(null);
+  const [isPublishingAll, setIsPublishingAll] = useState(false);
 
   useEffect(() => {
     api.projects.get(project.projectId).then(data => {
@@ -37,7 +48,24 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
       .then(r => setYtConnected(r.connected))
       .catch(() => {})
       .finally(() => setYtChecked(true));
-  }, [project.projectId]);
+
+    api.instagram.status()
+      .then(r => setInstaConnected(r.connected))
+      .catch(() => {});
+
+    // Carregar configurações da pasta para automação
+    if (project.folderId) {
+      api.folders.list().then(folders => {
+        const folder = folders.find(f => f.id === project.folderId);
+        if (folder) {
+          setFolderConfig({
+            yt: folder.auto_publish_youtube,
+            insta: folder.auto_publish_instagram
+          });
+        }
+      }).catch(() => {});
+    }
+  }, [project.projectId, project.folderId]);
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
@@ -73,6 +101,38 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
     } finally {
       setIsPublishing(false);
     }
+  };
+
+  const handlePublishInstagram = async () => {
+    setIsPublishingInsta(true);
+    setInstaError(null);
+    try {
+      const { instagram_url } = await api.instagram.upload(
+        project.projectId,
+        metadata?.video_title
+      );
+      setInstagramUrl(instagram_url);
+      setInstaSuccess(true);
+      if (!isPublishingAll) setShowSuccessModal(true);
+    } catch (err: any) {
+      setInstaError(err.message || 'Erro ao publicar no Instagram');
+    } finally {
+      setIsPublishingInsta(false);
+    }
+  };
+
+  const handlePublishAll = async () => {
+    setIsPublishingAll(true);
+    const tasks = [];
+    if (folderConfig?.yt && ytConnected && !youtubeUrl) tasks.push(handlePublishYouTube());
+    if (folderConfig?.insta && instaConnected && !instagramUrl) tasks.push(handlePublishInstagram());
+    
+    if (tasks.length > 0) {
+      await Promise.allSettled(tasks);
+    }
+    
+    setIsPublishingAll(false);
+    setShowSuccessModal(true);
   };
 
   const copyToClipboard = (text: string) => {
@@ -131,6 +191,59 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
         </div>
 
         <div className="lg:col-span-8 space-y-8">
+          {/* Botão Multicanal (Exibido apenas se configurado na pasta) */}
+          {(folderConfig?.yt || folderConfig?.insta) && !youtubeUrl && !instagramUrl && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="relative overflow-hidden glass-card p-8 bg-gradient-to-br from-ai-primary/10 via-purple-500/5 to-transparent border-ai-primary/20 shadow-2xl shadow-ai-primary/5"
+            >
+              <div className="absolute top-0 right-0 p-8 opacity-10">
+                <Rocket className="w-24 h-24 text-ai-primary" />
+              </div>
+
+              <div className="relative flex flex-col md:flex-row items-center justify-between gap-8">
+                <div className="flex items-center gap-6">
+                  <div className="w-16 h-16 rounded-2xl bg-ai-primary/10 flex items-center justify-center text-ai-primary shadow-xl shadow-ai-primary/10">
+                    <Rocket className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-1">Lançamento Multicanal</h3>
+                    <p className="text-sm text-gray-500">Publicar automaticamente nas redes configuradas nesta pasta.</p>
+                    <div className="flex items-center gap-3 mt-3">
+                      {folderConfig.yt && (
+                        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-bold uppercase">
+                          <Youtube className="w-3 h-3" /> YouTube
+                        </div>
+                      )}
+                      {folderConfig.insta && (
+                        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-pink-500/10 border border-pink-500/20 text-pink-500 text-[10px] font-bold uppercase">
+                          <Share2 className="w-3 h-3" /> Instagram
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handlePublishAll}
+                  disabled={isPublishingAll || (folderConfig.yt && !ytConnected) || (folderConfig.insta && !instaConnected)}
+                  className="w-full md:w-auto px-10 py-5 bg-ai-primary hover:bg-ai-secondary text-white rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-xl shadow-ai-primary/20 disabled:opacity-50 group"
+                >
+                  {isPublishingAll ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <>
+                      <Rocket className="w-6 h-6 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                      <span>Lançar Tudo Agora</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Individual Platforms */}
           {!ytConnected ? (
              <section className="glass-card p-8 border-red-500/10 bg-gradient-to-br from-red-500/[0.02] to-transparent">
               <button 
@@ -157,8 +270,8 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
                 <div>
-                  <h4 className="text-xl font-bold text-white mb-1">Publicado com Sucesso!</h4>
-                  <p className="text-sm text-gray-500">Seu vídeo já está disponível no canal e pronto para viralizar.</p>
+                  <h4 className="text-xl font-bold text-white mb-1">YouTube Publicado!</h4>
+                  <p className="text-sm text-gray-500">Seu vídeo já está disponível no Shorts.</p>
                 </div>
               </div>
               <a href={youtubeUrl} target="_blank" rel="noreferrer" className="btn-primary py-4 px-8 rounded-2xl text-sm whitespace-nowrap">
@@ -205,7 +318,7 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
 
               <div className="mt-12 pt-10 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-8">
                 <div className="flex items-center gap-4">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Sincronização em tempo real</span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Sincronização YouTube</span>
                 </div>
                 
                 <button 
@@ -214,10 +327,76 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
                   className="w-full sm:w-auto btn-primary py-5 px-12 rounded-[1.5rem] bg-red-600 hover:bg-red-500 border-red-500/50 shadow-2xl shadow-red-600/30 text-base"
                 >
                   {isPublishing ? <Loader2 className="w-6 h-6 animate-spin" /> : <Rocket className="w-6 h-6" />}
-                  <span>{scheduleEnabled ? 'Agendar no Canal' : 'Publicar Agora'}</span>
+                  <span>{scheduleEnabled ? 'Agendar no YouTube' : 'Publicar no YouTube'}</span>
                 </button>
               </div>
               {ytError && <p className="text-xs text-center text-red-500 font-medium mt-4">{ytError}</p>}
+            </div>
+          )}
+
+          {/* Instagram Section */}
+          {instagramUrl ? (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-10 rounded-[2rem] bg-pink-500/5 border border-pink-500/10 flex flex-col md:flex-row items-center justify-between gap-8"
+            >
+              <div className="flex items-center gap-6">
+                <div className="w-16 h-16 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-500 shadow-xl shadow-pink-500/5">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <div>
+                  <h4 className="text-xl font-bold text-white mb-1">Reels Publicado!</h4>
+                  <p className="text-sm text-gray-500">Seu vídeo já está disponível no seu feed do Instagram.</p>
+                </div>
+              </div>
+              <a href={instagramUrl} target="_blank" rel="noreferrer" className="btn-primary py-4 px-8 rounded-2xl text-sm whitespace-nowrap bg-gradient-to-r from-orange-500 to-pink-500 border-none">
+                <span>Ver no Instagram</span>
+                <ExternalLink className="w-5 h-5" />
+              </a>
+            </motion.div>
+          ) : (
+            <div className="group relative overflow-hidden glass-card border-white/5 bg-white/[0.02] p-10 hover:border-pink-500/20 transition-all duration-500">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-pink-500/5 blur-[80px] rounded-full -mr-32 -mt-32 group-hover:bg-pink-500/10 transition-all" />
+              
+              <div className="relative flex flex-col lg:flex-row lg:items-center gap-10">
+                <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-orange-500 via-pink-500 to-purple-500/10 flex items-center justify-center text-white shadow-2xl shadow-pink-500/10 group-hover:scale-110 transition-transform duration-500 shrink-0">
+                  <Share2 className="w-10 h-10" />
+                </div>
+                
+                <div className="flex-1 space-y-2">
+                  <h4 className="text-2xl font-bold text-white tracking-tight">Instagram Reels</h4>
+                  <p className="text-sm text-gray-400 font-medium leading-relaxed">
+                    Postagem automática de Reels para impulsionar seu alcance no ecossistema Meta.
+                  </p>
+                </div>
+
+                <div className="shrink-0">
+                  {!instaConnected ? (
+                    <button 
+                      onClick={() => window.open('https://developers.facebook.com/apps/1310746801013095/fb-login/', '_blank')}
+                      className="h-14 px-8 rounded-2xl border border-white/5 bg-white/5 text-gray-300 text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-all"
+                    >
+                      Configurar App
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={handlePublishInstagram}
+                      disabled={isPublishingInsta}
+                      className="w-full sm:w-auto btn-primary py-5 px-12 rounded-[1.5rem] bg-gradient-to-r from-orange-600 to-pink-600 hover:from-orange-500 hover:to-pink-500 border-none shadow-2xl shadow-pink-600/30 text-base"
+                    >
+                      {isPublishingInsta ? <Loader2 className="w-6 h-6 animate-spin" /> : <Rocket className="w-6 h-6" />}
+                      <span>{isPublishingInsta ? 'Processando Reels...' : 'Publicar no Reels'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+              {instaError && <p className="text-xs text-center text-red-500 font-medium mt-4">{instaError}</p>}
+              {isPublishingInsta && (
+                <p className="text-[10px] text-center text-gray-500 mt-4 animate-pulse">
+                  Aguardando o Instagram processar o vídeo (isso pode levar até 1 minuto)...
+                </p>
+              )}
             </div>
           )}
 
@@ -285,11 +464,13 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
                 <CheckCircle2 className="w-10 h-10 text-white" />
               </div>
               <div className="space-y-4">
-                <h3 className="text-3xl font-display font-bold">Lançamento Iniciado!</h3>
+                <h3 className="text-3xl font-display font-bold">Missão Cumprida!</h3>
                 <p className="text-gray-500 text-lg leading-relaxed">
-                  {scheduleEnabled 
-                    ? 'Seu short foi agendado com sucesso e entrará no ar no horário escolhido.' 
-                    : 'Seu short foi enviado para o YouTube e já está sendo processado pela plataforma.'}
+                  {youtubeUrl && instagramUrl 
+                    ? 'Seu conteúdo foi lançado com sucesso no YouTube Shorts e Instagram Reels.'
+                    : youtubeUrl 
+                      ? 'Seu vídeo foi enviado para o YouTube e já está sendo processado.'
+                      : 'Seu Reel foi publicado com sucesso no Instagram.'}
                 </p>
               </div>
               <div className="pt-4 flex flex-col gap-3">

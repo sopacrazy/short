@@ -35,8 +35,13 @@ async function getBundle(): Promise<string> {
 
 function detectFfmpeg(): string {
   // Usa o ffmpeg que o próprio Remotion já tem instalado
-  const remotionFf = resolve(__dirname, '../../../node_modules/@remotion/compositor-win32-x64-msvc/ffmpeg.exe');
+  // __dirname: server/workers
+  const remotionFf = resolve(__dirname, '../../node_modules/@remotion/compositor-win32-x64-msvc/ffmpeg.exe');
   if (existsSync(remotionFf)) return remotionFf;
+
+  // Tenta também no root direto caso o __dirname varie em prod
+  const rootFf = resolve(process.cwd(), 'node_modules/@remotion/compositor-win32-x64-msvc/ffmpeg.exe');
+  if (existsSync(rootFf)) return rootFf;
 
   // Linux / macOS
   const unix = ['/usr/bin/ffmpeg', '/usr/local/bin/ffmpeg'];
@@ -131,7 +136,9 @@ export async function renderVideo(
     const measured = await getAudioDuration(audioUrl, ffmpegBin);
     if (measured) {
       audioDuration = measured;
-      console.log(`[Render] Duração real do áudio: ${measured.toFixed(2)}s (estimado pelo GPT: ${script.duration_seconds}s)`);
+      console.log(`[Render] Duração REAL do áudio: ${measured.toFixed(2)}s (Sync OK)`);
+    } else {
+      console.warn(`[Render] FALHA ao medir áudio. Usando estimativa: ${audioDuration}s. Sync pode falhar.`);
     }
   }
 

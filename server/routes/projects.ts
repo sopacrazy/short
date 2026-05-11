@@ -15,15 +15,20 @@ router.get('/', authMiddleware, async (req: any, res) => {
   
   let query = supabase
     .from('projects')
-    .select('*, export_metadata(youtube_url)')
+    .select('*, export_metadata(youtube_url, instagram_url)')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
   if (folder_id === 'none') query = query.is('folder_id', null);
   else if (folder_id) query = query.eq('folder_id', folder_id);
+  
   const { data, error } = await query;
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    console.error('[Projects API] Erro na query:', error);
+    return res.status(500).json({ error: error.message });
+  }
+  
   if (!data?.length) return res.json([]);
 
   // Busca a primeira cena com imagem de cada projeto para usar como thumbnail
@@ -42,6 +47,7 @@ router.get('/', authMiddleware, async (req: any, res) => {
   return res.json(data.map((p: any) => ({
     ...p,
     youtube_url: p.export_metadata?.youtube_url ?? null,
+    instagram_url: p.export_metadata?.instagram_url ?? null,
     thumbnail_url: thumbnailMap[p.id as string] ?? null,
     export_metadata: undefined, // remove o objeto aninhado
   })));

@@ -62,7 +62,10 @@ export const SceneClip: React.FC<SceneClipProps> = ({ imageUrl, sceneIndex = 0, 
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
 
-  const opacity = interpolate(frame, [0, 3], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const isFirstScene = sceneIndex === 0;
+  const opacity = (isFirstScene || staticDisplay) 
+    ? 1 
+    : interpolate(frame, [0, 3], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
   if (staticDisplay) {
     return (
