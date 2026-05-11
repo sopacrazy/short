@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, Wand2, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Wand2, Loader2, CheckCircle, AlertCircle, Film, Type, Zap, Music, ArrowRight } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import type { ProjectContext } from '@/src/types';
+import FolderContextBanner from './FolderContextBanner';
 
 interface Step4PreviewProps {
   project: ProjectContext;
@@ -18,12 +19,10 @@ export default function Step4Preview({ project, onNext, onBack }: Step4PreviewPr
   const [renderProgress, setRenderProgress] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoLoading, setVideoLoading] = useState(false);
-  const [videoBuffered, setVideoBuffered] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Verifica se já tem vídeo renderizado ao entrar na tela
   useEffect(() => {
     api.projects.get(project.projectId).then(data => {
       if (data.project.status === 'completed' && data.metadata?.video_url) {
@@ -36,277 +35,191 @@ export default function Step4Preview({ project, onNext, onBack }: Step4PreviewPr
   const handleRender = async () => {
     setError(null);
     setRenderStatus('queued');
-    setRenderMessage('Adicionando à fila de renderização...');
+    setRenderMessage('Entrando na fila de processamento...');
 
     try {
       const result = await api.render.start(project.projectId);
-
-      // Já estava renderizado
       if (result.videoUrl) {
         setVideoUrl(result.videoUrl);
         setRenderStatus('completed');
-        setRenderMessage('Vídeo pronto!');
         return;
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao iniciar renderização');
+      setError('Falha ao iniciar motor de renderização');
       setRenderStatus('error');
       return;
     }
 
-    // Conecta SSE para receber updates em tempo real
     const es = api.render.streamStatus(project.projectId);
     eventSourceRef.current = es;
 
     es.onmessage = (e) => {
       try {
-        const data = JSON.parse(e.data) as {
-          type: string; message: string; videoUrl?: string; status?: string; progress?: number;
-        };
-
-        if (data.type === 'queued') {
-          setRenderStatus('queued');
-          setRenderMessage(data.message);
-          setRenderProgress(0);
-        } else if (data.type === 'started') {
-          setRenderStatus('started');
-          setRenderMessage('Montando cenas com Remotion...');
-          setRenderProgress(0);
-        } else if (data.type === 'progress') {
+        const data = JSON.parse(e.data);
+        if (data.type === 'progress') {
           setRenderStatus('rendering');
           setRenderProgress(data.progress ?? 0);
-          setRenderMessage(`Renderizando frames...`);
+          setRenderMessage(`Processando frames...`);
         } else if (data.type === 'completed') {
           setRenderStatus('completed');
-          setRenderMessage('Vídeo renderizado com sucesso!');
-          setRenderProgress(100);
           setVideoUrl(data.videoUrl ?? null);
           setVideoLoading(true);
           es.close();
-          // Gera thumbnail em background — estará pronta quando o usuário chegar no Export
           api.projects.generateThumbnail(project.projectId).catch(() => {});
         } else if (data.type === 'error') {
           setRenderStatus('error');
           setError(data.message);
           es.close();
-        } else if (data.type === 'current_status' && data.status === 'completed') {
-          setRenderStatus('completed');
-          setRenderMessage('Vídeo já renderizado!');
         }
       } catch {}
     };
-
-    es.onerror = () => {
-      // SSE fecha automaticamente ao terminar — ignora erros de fechamento
-      if (renderStatus !== 'completed') {
-        setRenderStatus('error');
-        setError('Conexão SSE perdida. Verifique o status no dashboard.');
-      }
-    };
-
-    return () => es.close();
   };
-
-  useEffect(() => {
-    return () => eventSourceRef.current?.close();
-  }, []);
 
   const isRendering = ['queued', 'started', 'rendering'].includes(renderStatus);
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 1.05 }}
-      className="max-w-6xl mx-auto flex flex-col items-center"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="max-w-7xl mx-auto px-4 py-8"
     >
-      <div className="w-full flex items-center justify-between mb-8">
-        <button onClick={onBack} className="flex items-center gap-2 p-2 rounded-lg text-gray-400 hover:text-white transition-colors uppercase text-xs font-semibold tracking-wider">
-          <ArrowLeft className="w-4 h-4" /> Voltar
-        </button>
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-semibold uppercase tracking-wider">
-          <span className="text-emerald-400">Etapa 4 de 5 — Preview</span>
-        </div>
-        <div className="w-24" />
+      <div className="mb-8">
+        <FolderContextBanner project={project} />
       </div>
 
-      <div className="flex-1 w-full flex flex-col lg:flex-row items-center justify-center gap-6 lg:gap-12">
+      <div className="flex items-center gap-4 mb-12">
+        <button onClick={onBack} className="p-2 rounded-xl hover:bg-white/5 text-gray-500 hover:text-white transition-all">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <h2 className="text-2xl font-display font-bold">Preview e Renderização</h2>
+      </div>
 
-        {/* Preview do phone */}
-        <div className="relative w-[220px] h-[440px] sm:w-[280px] sm:h-[560px] rounded-[2.5rem] bg-black border-[8px] border-[#1A1A1E] shadow-[0_0_50px_rgba(0,0,0,0.5),_inset_0_0_20px_rgba(255,255,255,0.05)] overflow-hidden flex-shrink-0">
-          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent pointer-events-none z-50" />
-
-          {videoUrl && renderStatus === 'completed' ? (
-            <>
+      <div className="grid lg:grid-cols-12 gap-16 items-center">
+        {/* Celular Cinematic */}
+        <div className="lg:col-span-5 flex justify-center">
+          <div className="relative w-[320px] aspect-[9/19] rounded-[3rem] bg-black border-[12px] border-[#1A1A1E] shadow-[0_0_80px_rgba(123,97,255,0.15)] overflow-hidden group">
+            {/* Notch */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#1A1A1E] rounded-b-2xl z-[60]" />
+            
+            {videoUrl && renderStatus === 'completed' ? (
               <video
                 ref={videoRef}
                 src={videoUrl}
                 className="w-full h-full object-cover"
                 controls
                 loop
-                playsInline
-                preload="auto"
                 onCanPlay={() => setVideoLoading(false)}
-                onProgress={() => {
-                  const v = videoRef.current;
-                  if (v && v.duration && v.buffered.length > 0) {
-                    setVideoBuffered(Math.round((v.buffered.end(0) / v.duration) * 100));
-                  }
-                }}
               />
-              {videoLoading && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10 gap-3">
-                  <Loader2 className="w-8 h-8 text-[#7B61FF] animate-spin" />
-                  <span className="text-xs text-gray-400">Carregando vídeo...</span>
-                  {videoBuffered > 0 && (
-                    <div className="w-24 h-1 bg-white/10 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#7B61FF]" style={{ width: `${videoBuffered}%` }} />
-                    </div>
-                  )}
+            ) : isRendering ? (
+              <div className="absolute inset-0 bg-[#0A0A0B] flex flex-col items-center justify-center p-8 text-center">
+                <div className="w-24 h-24 relative mb-8">
+                  <div className="absolute inset-0 border-2 border-ai-primary/20 rounded-full" />
+                  <div className="absolute inset-0 border-2 border-t-ai-primary rounded-full animate-spin" />
+                  <Film className="absolute inset-0 m-auto w-8 h-8 text-ai-primary animate-pulse" />
                 </div>
-              )}
-            </>
-          ) : isRendering ? (
-            /* Animação de renderizando */
-            <div className="absolute inset-0 bg-[#0A0A0B] flex flex-col items-center justify-center gap-6">
-              <div className="relative w-20 h-20">
-                <div className="absolute inset-0 rounded-full border-4 border-[#7B61FF]/20" />
-                <div className="absolute inset-0 rounded-full border-4 border-t-[#7B61FF] border-r-[#00E5FF] border-b-transparent border-l-transparent animate-spin" />
-                <div className="absolute inset-2 rounded-full border-4 border-t-[#00E5FF]/50 border-r-transparent border-b-transparent border-l-transparent animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
+                <p className="text-xs font-bold text-ai-primary uppercase tracking-[0.3em] mb-2">Renderizando</p>
+                <p className="text-2xl font-display font-bold text-white">{renderProgress}%</p>
               </div>
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-xs font-semibold text-[#7B61FF] uppercase tracking-widest animate-pulse">Renderizando</span>
-                <div className="flex gap-1">
-                  {[0,1,2,3,4].map(i => (
-                    <div
-                      key={i}
-                      className="w-1 rounded-full bg-gradient-to-t from-[#7B61FF] to-[#00E5FF]"
-                      style={{
-                        height: `${12 + Math.random() * 20}px`,
-                        animationName: 'none',
-                        opacity: 0.6 + (i * 0.1),
-                      }}
-                    />
-                  ))}
-                </div>
+            ) : (
+              <div className="absolute inset-0 bg-[#0A0A0B] flex flex-col items-center justify-center p-12 text-center">
+                <Wand2 className="w-12 h-12 text-gray-800 mb-6" />
+                <p className="text-sm font-bold text-gray-600 uppercase tracking-widest leading-relaxed">
+                  Aguardando comando de renderização
+                </p>
               </div>
-            </div>
-          ) : (
-            /* Estado idle — aguardando iniciar */
-            <div className="absolute inset-0 bg-[#0A0A0B] flex flex-col items-center justify-center gap-4 px-6">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#7B61FF]/20 to-[#00E5FF]/20 border border-white/10 flex items-center justify-center">
-                <Wand2 className="w-8 h-8 text-[#7B61FF]" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-semibold text-white mb-1">Pronto para renderizar</p>
-                <p className="text-xs text-gray-500 leading-relaxed">Clique em "Renderizar" para montar seu short</p>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
-        {/* Painel de controle */}
-        <div className="flex-1 w-full max-w-xl flex flex-col gap-6">
-
-          <div>
-            <h2 className="text-xl sm:text-3xl font-display font-bold mb-3">
-              {renderStatus === 'completed' ? 'Vídeo Pronto! 🎉' : 'Renderizar o Short'}
-            </h2>
-            <p className="text-gray-400 leading-relaxed">
-              {renderStatus === 'completed'
-                ? 'Seu short foi montado com Remotion e está pronto para exportação.'
-                : 'A IA vai montar todas as cenas, sincronizar o áudio da narração e aplicar as legendas virais automaticamente.'}
+        {/* Info e Controles */}
+        <div className="lg:col-span-7 space-y-8">
+          <div className="space-y-4">
+            <h3 className="text-4xl font-display font-bold leading-tight">
+              {renderStatus === 'completed' ? 'Seu Short está pronto!' : 'Quase lá, vamos dar vida ao seu projeto.'}
+            </h3>
+            <p className="text-lg text-gray-500 leading-relaxed max-w-lg">
+              {renderStatus === 'completed' 
+                ? 'O vídeo foi processado com sucesso. Verifique o preview e prossiga para a exportação.' 
+                : 'Clique no botão abaixo para iniciar a montagem final. Nossa IA aplicará legendas, zooms e trilha sonora.'}
             </p>
           </div>
 
-          {/* Detalhes do que vai renderizar */}
-          {renderStatus === 'idle' && (
-            <div className="bg-[#141415]/80 border border-[#ffffff1a] rounded-2xl p-5 space-y-3">
-              <h4 className="font-semibold text-sm text-gray-400 uppercase tracking-wider">O que será gerado</h4>
-              {[
-                '🎬 Cenas com Ken Burns (zoom cinematográfico)',
-                '🎵 Narração sincronizada com as legendas',
-                '✍️ Legendas virais estilo Hormozi animadas',
-                '📱 Vídeo vertical 1080×1920 (9:16)',
-                '🎞️ MP4 comprimido pronto para upload',
-              ].map(item => (
-                <div key={item} className="flex items-center gap-2 text-sm text-gray-300">
-                  <span>{item}</span>
-                </div>
-              ))}
+          {!isRendering && renderStatus !== 'completed' && (
+            <div className="grid grid-cols-2 gap-4">
+              <FeatureItem icon={<Type className="w-4 h-4" />} text="Legendas Dinâmicas" />
+              <FeatureItem icon={<Zap className="w-4 h-4" />} text="Efeitos de Zoom" />
+              <FeatureItem icon={<Music className="w-4 h-4" />} text="Mixagem de Áudio" />
+              <FeatureItem icon={<CheckCircle className="w-4 h-4" />} text="Qualidade HD" />
             </div>
           )}
 
-          {/* Status da renderização */}
           {isRendering && (
-            <div className="bg-[#141415]/80 border border-[#7B61FF]/30 rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <Loader2 className="w-5 h-5 text-[#7B61FF] animate-spin" />
-                  <span className="font-semibold text-[#7B61FF]">Renderizando...</span>
+            <div className="glass-card p-8 border-ai-primary/20 space-y-6">
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-[10px] font-bold text-ai-primary uppercase tracking-widest mb-1">Status do Processamento</p>
+                  <p className="text-sm text-gray-300 font-medium">{renderMessage}</p>
                 </div>
-                {renderProgress > 0 && (
-                  <span className="text-2xl font-display font-bold text-white">
-                    {renderProgress}<span className="text-sm text-gray-400">%</span>
-                  </span>
-                )}
+                <p className="text-3xl font-display font-bold text-white">{renderProgress}%</p>
               </div>
-              {renderProgress > 0 && (
-                <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden mb-3">
-                  <div
-                    className="h-full bg-gradient-to-r from-[#7B61FF] to-[#00E5FF] transition-all duration-300 rounded-full"
-                    style={{ width: `${renderProgress}%` }}
-                  />
-                </div>
-              )}
-              <p className="text-sm text-gray-300">{renderMessage}</p>
-              <p className="text-xs text-gray-500 mt-2">Não feche esta janela.</p>
+              <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${renderProgress}%` }}
+                  className="h-full bg-gradient-to-r from-ai-primary to-ai-secondary" 
+                />
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-gray-600 font-bold uppercase tracking-widest">
+                <Loader2 className="w-3 h-3 animate-spin" /> Por favor, não feche esta aba durante o processo.
+              </div>
             </div>
           )}
 
-          {renderStatus === 'completed' && (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-5 flex items-center gap-3">
-              <CheckCircle className="w-6 h-6 text-emerald-400 shrink-0" />
-              <div>
-                <p className="font-semibold text-emerald-400">Renderização concluída!</p>
-                <p className="text-sm text-gray-400 mt-1">Vídeo disponível no preview ao lado.</p>
-              </div>
-            </div>
-          )}
+          <div className="pt-8">
+            {renderStatus === 'completed' ? (
+              <button
+                onClick={onNext}
+                className="btn-primary py-5 px-12 rounded-2xl shadow-2xl shadow-ai-primary/30"
+              >
+                <span>Próximo: Exportar Vídeo</span>
+                <ArrowRight className="w-6 h-6" />
+              </button>
+            ) : (
+              <button
+                onClick={handleRender}
+                disabled={isRendering}
+                className={`
+                  flex items-center gap-4 py-5 px-12 rounded-2xl font-bold text-lg transition-all
+                  ${isRendering 
+                    ? 'bg-white/5 text-gray-600 cursor-not-allowed' 
+                    : 'bg-white text-black hover:bg-gray-200 shadow-2xl shadow-white/10'}
+                `}
+              >
+                {isRendering ? <Loader2 className="w-6 h-6 animate-spin" /> : <Wand2 className="w-6 h-6" />}
+                <span>{isRendering ? 'Renderizando...' : 'Iniciar Renderização'}</span>
+              </button>
+            )}
+          </div>
 
           {error && (
-            <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-              <p className="text-sm text-rose-400">{error}</p>
+            <div className="flex items-center gap-2 text-rose-500 text-sm font-medium">
+              <AlertCircle className="w-4 h-4" /> {error}
             </div>
-          )}
-
-          {/* Botões de ação */}
-          {renderStatus !== 'completed' && (
-            <button
-              onClick={handleRender}
-              disabled={isRendering}
-              className="w-full flex items-center justify-center gap-2 px-8 py-5 rounded-2xl bg-gradient-to-r from-[#7B61FF] to-[#00E5FF] text-white font-bold text-lg hover:opacity-90 transition-opacity shadow-[0_0_30px_rgba(123,97,255,0.4)] disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
-            >
-              {isRendering ? (
-                <><Loader2 className="w-6 h-6 animate-spin" /><span>Renderizando...</span></>
-              ) : (
-                <><Wand2 className="w-6 h-6" /><span>Renderizar Vídeo com IA</span></>
-              )}
-            </button>
-          )}
-
-          {renderStatus === 'completed' && (
-            <button
-              onClick={onNext}
-              className="w-full flex items-center justify-center gap-2 px-8 py-5 rounded-2xl bg-gradient-to-r from-[#00E5FF] to-[#7B61FF] text-white font-bold text-lg hover:opacity-90 transition-opacity shadow-[0_0_30px_rgba(0,229,255,0.3)]"
-            >
-              <CheckCircle className="w-6 h-6" />
-              <span>Ir para Exportação</span>
-            </button>
           )}
         </div>
       </div>
     </motion.div>
+  );
+}
+
+function FeatureItem({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <div className="flex items-center gap-3 text-gray-400 text-sm font-medium">
+      <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-ai-primary">
+        {icon}
+      </div>
+      {text}
+    </div>
   );
 }

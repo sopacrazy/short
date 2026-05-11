@@ -83,26 +83,48 @@ export interface GenerateScriptResult {
   metadata: ApiMetadata;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const { data: { session } } = await supabase.auth.getSession();
-  const authHeader = session ? { 'Authorization': `Bearer ${session.access_token}` } : {};
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeader,
-      ...options?.headers,
-    },
-  });
-
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error((data as { error?: string }).error ?? `Erro ${res.status}`);
+async function getAuthHeader(): Promise<Record<string, string>> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session ? { 'Authorization': `Bearer ${session.access_token}` } : {};
+  } catch {
+    return {};
   }
-  return data as T;
+}
+
+async function request<T>(path: string, options?: RequestInit & { timeout?: number }): Promise<T> {
+  const authHeader = await getAuthHeader();
+  const timeout = options?.timeout ?? 60000; // Padrão de 60 segundos
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeader,
+        ...options?.headers,
+      },
+    });
+    clearTimeout(timeoutId);
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error((data as { error?: string }).error ?? `Erro ${res.status}`);
+    }
+    return data as T;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error('A requisição demorou muito e foi interrompida (Timeout)');
+    }
+    throw err;
+  }
 }
 
 export const api = {
@@ -132,7 +154,7 @@ export const api = {
       }>(`/projects/${id}`),
 
     delete: (id: string) =>
-      fetch(`${API_BASE}/projects/${id}`, { method: 'DELETE' }),
+      request(`/projects/${id}`, { method: 'DELETE' }),
 
     uploadEndCard: (id: string, imageBase64: string, mimeType: string) =>
       request<{ url: string }>(`/projects/${id}/endcard`, {
@@ -152,6 +174,7 @@ export const api = {
       request<GenerateScriptResult>(`/projects/${projectId}/script`, {
         method: 'POST',
         body: JSON.stringify(opts),
+        timeout: 120000,
       }),
 
     update: (
@@ -169,6 +192,7 @@ export const api = {
       request(`/projects/${projectId}/narration`, {
         method: 'POST',
         body: JSON.stringify({ voice_id: voiceId, speed }),
+        timeout: 120000,
       }),
     voices: () => request<Voice[]>('/voices'),
   },
@@ -330,6 +354,7 @@ export const api = {
   },
 
   health: () => request<{ status: string; services: Record<string, boolean> }>('/health'),
+  getBaseUrl: () => API_BASE.replace(/\/api$/, ''),
 };
 
 export interface ThemeSuggestion {

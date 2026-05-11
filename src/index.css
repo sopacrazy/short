@@ -1,42 +1,45 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --color-ai-dark: #0A0A0B;
+  --color-ai-card: #141415;
   --color-ai-primary: #7B61FF;
   --color-ai-secondary: #00E5FF;
-  --color-ai-dark: #0A0A0B;
-  --color-ai-surface: #141415;
-  --color-ai-border: rgba(255, 255, 255, 0.08);
+  --color-ai-accent: #FF61D2;
+  
+  --font-display: "Outfit", sans-serif;
+  --font-sans: "Inter", sans-serif;
 }
 
-body {
-  background-color: var(--color-ai-dark);
-  color: white;
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer base {
+  body {
+    @apply bg-ai-dark text-white font-sans antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tight;
+  }
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-display);
+@layer components {
+  .glass-card {
+    @apply bg-ai-card border border-white/5 rounded-3xl overflow-hidden transition-all duration-300;
+  }
+
+  .glass-card:hover {
+    @apply border-white/10 bg-white/[0.02] shadow-2xl shadow-black/50;
+  }
+
+  .btn-primary {
+    @apply bg-ai-primary hover:bg-[#6B51EF] text-white font-bold py-3 px-6 rounded-2xl transition-all shadow-lg shadow-ai-primary/20 flex items-center justify-center gap-2;
+  }
+
+  .icon-circle {
+    @apply w-14 h-14 rounded-2xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110;
+  }
 }
 
-.bg-glass {
-  background: rgba(20, 20, 21, 0.6);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--color-ai-border);
-}
-
-.text-gradient {
-  background: linear-gradient(135deg, var(--color-ai-secondary) 0%, var(--color-ai-primary) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }

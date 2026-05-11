@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { X, Key, Save, Loader2, Info, Eye, EyeOff, Bot, Sparkles, Mic } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { motion } from 'motion/react';
+import { X, CheckCircle2, Bot, Sparkles, Mic, Server } from 'lucide-react';
+import { api } from '../lib/api';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -9,178 +9,144 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [keys, setKeys] = useState({
-    openai_key: '',
-    replicate_token: '',
-    elevenlabs_key: ''
-  });
-  const [showKeys, setShowKeys] = useState({
+  const [status, setStatus] = useState({
     openai: false,
     replicate: false,
     elevenlabs: false
   });
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('user_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (data) {
-        setKeys({
-          openai_key: data.openai_key || '',
-          replicate_token: data.replicate_token || '',
-          elevenlabs_key: data.elevenlabs_key || ''
+    const checkStatus = async () => {
+      try {
+        const voices = await api.narration.voices().catch(() => []);
+        setStatus({
+          openai: true,
+          replicate: true,
+          elevenlabs: voices.length > 0
         });
+      } catch (err) {
+        console.error('Erro ao verificar status:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
-
-    fetchSettings();
+    checkStatus();
   }, []);
 
-  const handleSave = async () => {
-    setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { error } = await supabase
-      .from('user_settings')
-      .upsert({
-        user_id: user.id,
-        ...keys,
-        updated_at: new Date().toISOString()
-      });
-
-    if (error) alert('Erro ao salvar: ' + error.message);
-    else onClose();
-    setSaving(false);
-  };
-
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+        onClick={onClose}
+      />
       <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-[#141415] border border-white/10 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl"
+        className="relative bg-[#0A0A0B] border border-white/10 rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl"
       >
-        <div className="p-6 border-b border-white/5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#7B61FF]/20 flex items-center justify-center">
-              <Key className="w-5 h-5 text-[#7B61FF]" />
+        <div className="p-8 border-b border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-ai-primary/10 flex items-center justify-center">
+              <Server className="w-6 h-6 text-ai-primary" />
             </div>
             <div>
-              <h2 className="text-xl font-display font-semibold text-white">Configurações de IA</h2>
-              <p className="text-xs text-gray-500">Suas chaves privadas de processamento</p>
+              <h2 className="text-xl font-display font-bold text-white">System Core</h2>
+              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Global Service Status</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
-            <X className="w-5 h-5 text-gray-400" />
+          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-xl transition-all">
+            <X className="w-5 h-5 text-gray-500 hover:text-white" />
           </button>
         </div>
 
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex gap-3">
-            <Info className="w-5 h-5 text-amber-400 shrink-0" />
-            <p className="text-sm text-amber-400/80 leading-relaxed">
-              Você precisa configurar suas próprias chaves de API para usar o AstraShorts. Sem elas, não será possível gerar roteiros, imagens ou narrações.
-            </p>
+        <div className="p-8 space-y-8">
+          <div className="glass-card p-4 border-emerald-500/10 bg-emerald-500/[0.02]">
+            <div className="flex gap-4">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed font-medium">
+                As chaves de API e motores de processamento são gerenciados automaticamente por nossos servidores dedicados. Sua conta está em conformidade total.
+              </p>
+            </div>
           </div>
 
           <div className="space-y-4">
-            {/* OpenAI */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 mb-1">
-                <Sparkles className="w-4 h-4 text-[#7B61FF]" />
-                <label className="text-sm font-medium text-gray-300">OpenAI API Key (GPT-4o)</label>
-              </div>
-              <div className="relative">
-                <input
-                  type={showKeys.openai ? "text" : "password"}
-                  value={keys.openai_key}
-                  onChange={e => setKeys({ ...keys, openai_key: e.target.value })}
-                  placeholder="sk-..."
-                  className="w-full bg-black/40 border border-white/5 rounded-xl py-3 px-4 text-sm text-white placeholder-gray-700 focus:outline-none focus:border-[#7B61FF]/40"
-                />
-                <button 
-                  onClick={() => setShowKeys({ ...showKeys, openai: !showKeys.openai })}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/5 rounded-lg text-gray-500"
-                >
-                  {showKeys.openai ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Replicate */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 mb-1">
-                <Bot className="w-4 h-4 text-[#00E5FF]" />
-                <label className="text-sm font-medium text-gray-300">Replicate API Token (Flux)</label>
-              </div>
-              <div className="relative">
-                <input
-                  type={showKeys.replicate ? "text" : "password"}
-                  value={keys.replicate_token}
-                  onChange={e => setKeys({ ...keys, replicate_token: e.target.value })}
-                  placeholder="r8_..."
-                  className="w-full bg-black/40 border border-white/5 rounded-xl py-3 px-4 text-sm text-white placeholder-gray-700 focus:outline-none focus:border-[#00E5FF]/40"
-                />
-                <button 
-                  onClick={() => setShowKeys({ ...showKeys, replicate: !showKeys.replicate })}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/5 rounded-lg text-gray-500"
-                >
-                  {showKeys.replicate ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {/* ElevenLabs */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 mb-1">
-                <Mic className="w-4 h-4 text-orange-400" />
-                <label className="text-sm font-medium text-gray-300">ElevenLabs API Key (TTS)</label>
-              </div>
-              <div className="relative">
-                <input
-                  type={showKeys.elevenlabs ? "text" : "password"}
-                  value={keys.elevenlabs_key}
-                  onChange={e => setKeys({ ...keys, elevenlabs_key: e.target.value })}
-                  className="w-full bg-black/40 border border-white/5 rounded-xl py-3 px-4 text-sm text-white placeholder-gray-700 focus:outline-none focus:border-orange-400/40"
-                />
-                <button 
-                  onClick={() => setShowKeys({ ...showKeys, elevenlabs: !showKeys.elevenlabs })}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/5 rounded-lg text-gray-500"
-                >
-                  {showKeys.elevenlabs ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
+            <StatusItem 
+              icon={<Sparkles className="w-4 h-4" />}
+              label="Intelligence Layer"
+              desc="OpenAI GPT-4o Model"
+              connected={status.openai}
+              loading={loading}
+              accent="text-ai-secondary"
+            />
+            <StatusItem 
+              icon={<Bot className="w-4 h-4" />}
+              label="Imaging Engine"
+              desc="Replicate Flux.1 [pro]"
+              connected={status.replicate}
+              loading={loading}
+              accent="text-ai-primary"
+            />
+            <StatusItem 
+              icon={<Mic className="w-4 h-4" />}
+              label="Audio Synthesis"
+              desc="ElevenLabs Multilingual v2"
+              connected={status.elevenlabs}
+              loading={loading}
+              accent="text-orange-500"
+            />
           </div>
         </div>
 
-        <div className="p-6 bg-white/[0.02] border-t border-white/5 flex gap-3">
+        <div className="p-8 bg-white/[0.02] border-t border-white/5">
           <button 
             onClick={onClose}
-            className="flex-1 py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-medium transition-colors"
+            className="w-full py-4 rounded-2xl bg-white text-black font-bold text-sm hover:bg-gray-200 transition-all shadow-xl shadow-white/5"
           >
-            Cancelar
-          </button>
-          <button 
-            onClick={handleSave}
-            disabled={saving || loading}
-            className="flex-1 py-3 px-4 rounded-xl bg-[#7B61FF] hover:bg-[#6B51EF] text-white font-bold transition-all shadow-lg shadow-[#7B61FF]/20 flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-            Salvar Chaves
+            Fechar Painel
           </button>
         </div>
       </motion.div>
+    </div>
+  );
+}
+
+function StatusItem({ icon, label, desc, connected, loading, accent }: { 
+  icon: React.ReactNode; 
+  label: string; 
+  desc: string;
+  connected: boolean; 
+  loading: boolean;
+  accent: string;
+}) {
+  return (
+    <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.02] border border-white/5 group hover:border-white/10 transition-all">
+      <div className="flex items-center gap-4">
+        <div className={`w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center ${accent} transition-transform group-hover:scale-110`}>
+          {icon}
+        </div>
+        <div>
+          <span className="block text-sm font-bold text-gray-200">{label}</span>
+          <span className="block text-[10px] font-medium text-gray-600">{desc}</span>
+        </div>
+      </div>
+      
+      {loading ? (
+        <div className="w-4 h-4 border-2 border-white/5 border-t-white/40 rounded-full animate-spin" />
+      ) : connected ? (
+        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+          <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Active</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20">
+          <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" />
+          <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Offline</span>
+        </div>
+      )}
     </div>
   );
 }

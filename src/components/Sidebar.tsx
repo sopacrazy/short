@@ -35,88 +35,56 @@ export default function Sidebar({ currentStep, onNavigateHome, onNavigateProject
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-y-0 left-0 z-40 w-64 border-r border-[#ffffff0a] bg-[#141415]/95 backdrop-blur-3xl
-        flex flex-col items-center py-8 shrink-0 transition-transform duration-300
+        fixed inset-y-0 left-0 z-40 w-64 border-r border-white/5 bg-[#0D0D0E]
+        flex flex-col py-8 shrink-0 transition-transform duration-300
         lg:relative lg:translate-x-0 lg:z-10
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Botão fechar — só mobile */}
         <button
           onClick={onClose}
-          className="lg:hidden absolute top-4 right-4 p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+          className="lg:hidden absolute top-4 right-4 p-2 rounded-lg hover:bg-white/5 text-gray-500 transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div
-          className="mb-12 cursor-pointer hover:opacity-80 transition-opacity"
-          onClick={() => handleNav(onNavigateHome)}
-          role="button"
-          tabIndex={0}
-        >
-          <ClipaiLogo className="w-12 h-12" />
+        <div className="px-6 mb-10 flex items-center gap-3">
+          <ClipaiLogo className="w-10 h-10" />
+          <span className="font-display font-bold text-xl tracking-tight text-white">Clip<span className="text-[#00E5FF]">ai</span></span>
         </div>
 
-        <nav className="flex-1 w-full px-4 space-y-2">
-          <NavItem icon={<Home className="w-5 h-5" />} label="Dashboard" isActive={currentStep === AppStep.DASHBOARD} onClick={() => handleNav(onNavigateHome)} />
-          <NavItem icon={<Video className="w-5 h-5" />} label="Projetos" isActive={currentStep === AppStep.PROJECTS} onClick={() => handleNav(onNavigateProjects)} />
-          <NavItem icon={<FolderHeart className="w-5 h-5" />} label="Ideias Salvas" isActive={false} />
-
-          <div className="pt-6 pb-2">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-4">Configurações</h3>
+        <nav className="flex-1 w-full px-3 space-y-1">
+          <NavItem icon={<Home className="w-4.5 h-4.5" />} label="Início" isActive={currentStep === AppStep.DASHBOARD} onClick={() => handleNav(onNavigateHome)} />
+          <NavItem icon={<Video className="w-4.5 h-4.5" />} label="Projetos" isActive={currentStep === AppStep.PROJECTS} onClick={() => handleNav(onNavigateProjects)} />
+          <NavItem icon={<FolderHeart className="w-4.5 h-4.5" />} label="Arquivos" isActive={false} />
+          
+          <div className="pt-8 pb-2 px-4">
+            <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Ferramentas</span>
           </div>
-          <NavItem icon={<Zap className="w-5 h-5" />} label="Integrações" isActive={false} />
-          <NavItem icon={<Settings className="w-5 h-5" />} label="Preferências" isActive={false} />
+          <NavItem icon={<Zap className="w-4.5 h-4.5" />} label="Processamento" isActive={false} />
+          <NavItem icon={<Settings className="w-4.5 h-4.5" />} label="Configurações" isActive={false} />
         </nav>
 
-        <div className="w-full px-4 mt-auto mb-4">
-          <div className="p-4 rounded-2xl bg-[#1A1A1E] border border-white/5 space-y-4">
-            <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-1">Conexões</h4>
+        <div className="px-3 mt-auto">
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
+            <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest px-1">Conexões</h4>
             
             <div className="space-y-3">
               <div className="flex items-center justify-between group/status">
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${integrationsStatus.ai ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                  <span className="text-xs text-gray-400 group-hover/status:text-gray-200 transition-colors">Chaves de IA</span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${integrationsStatus.ai ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500'}`} />
+                  <span className="text-xs text-gray-500 group-hover/status:text-gray-300 transition-colors">Sistema IA</span>
                 </div>
-                {integrationsStatus.ai ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                ) : (
-                  <span className="text-[10px] font-bold text-rose-500 uppercase">Pendente</span>
-                )}
+                {integrationsStatus.ai && <CheckCircle2 className="w-3 h-3 text-emerald-500/50" />}
               </div>
 
               <div className="flex items-center justify-between group/status">
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${integrationsStatus.youtube ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                  <span className="text-xs text-gray-400 group-hover/status:text-gray-200 transition-colors">YouTube</span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${integrationsStatus.youtube ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500'}`} />
+                  <span className="text-xs text-gray-500 group-hover/status:text-gray-300 transition-colors">YouTube</span>
                 </div>
-                {integrationsStatus.youtube ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                ) : (
-                  <button 
-                    onClick={async (e) => {
-                      e.preventDefault();
-                      const win = window.open('about:blank', 'youtube_auth', 'width=600,height=700');
-                      if (!win) {
-                        alert('Por favor, permita pop-ups para vincular o YouTube.');
-                        return;
-                      }
-                      try {
-                        const { api } = await import('../lib/api');
-                        const { url } = await api.youtube.getAuthUrl();
-                        if (url) win.location.href = url;
-                        else win.close();
-                      } catch (err) {
-                        console.error('Erro ao vincular YouTube:', err);
-                        win.close();
-                        alert('Erro ao carregar link de autenticação.');
-                      }
-                    }}
-                    className="text-[10px] font-bold text-[#00E5FF] hover:underline cursor-pointer"
-                  >
-                    Vincular
-                  </button>
+                {!integrationsStatus.youtube && (
+                  <button className="text-[10px] font-bold text-[#00E5FF] hover:brightness-110 transition-all">CONECTAR</button>
                 )}
               </div>
             </div>
@@ -156,22 +124,16 @@ function NavItem({ icon, label, isActive, onClick }: { icon: React.ReactNode; la
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${
+      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium relative group ${
         isActive
-          ? 'bg-[#7B61FF]/15 text-white border border-[#7B61FF]/30 shadow-[0_0_15px_rgba(123,97,255,0.1)]'
-          : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+          ? 'bg-white/[0.08] text-white'
+          : 'text-gray-500 hover:text-gray-200 hover:bg-white/[0.03]'
       }`}
     >
-      {icon}
+      <span className={`${isActive ? 'text-white' : 'text-gray-600 group-hover:text-gray-300'} transition-colors`}>
+        {icon}
+      </span>
       <span>{label}</span>
-      {isActive && (
-        <motion.div
-          layoutId="sidebar-active"
-          className="absolute left-0 w-1 h-6 bg-[#00E5FF] rounded-r-full"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        />
-      )}
     </button>
   );
 }

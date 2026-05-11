@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Edit2, RotateCw, ArrowRight, ArrowLeft, Clock, MessageSquare, PlayCircle, Star, AlertCircle } from 'lucide-react';
+import { Sparkles, Edit2, RotateCw, ArrowRight, ArrowLeft, Clock, MessageSquare, PlayCircle, Star, AlertCircle, Zap } from 'lucide-react';
 import { api, type ApiScript, type ApiScene, type ApiMetadata } from '@/src/lib/api';
 import type { ProjectContext } from '@/src/types';
 import FolderContextBanner from './FolderContextBanner';
@@ -18,7 +18,6 @@ export default function Step2Script({ project, onNext, onBack }: Step2ScriptProp
   const [scenes, setScenes] = useState<ApiScene[]>([]);
   const [metadata, setMetadata] = useState<ApiMetadata | null>(null);
   const generatedRef = useRef(false);
-  // Acumula todos os ganchos gerados para evitar repetição em regenerações
   const usedHooksRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -68,182 +67,163 @@ export default function Step2Script({ project, onNext, onBack }: Step2ScriptProp
     }
   };
 
-  const durationPercent = script ? Math.min((script.duration_seconds / 60) * 100, 100) : 70;
-
   return (
     <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="max-w-5xl mx-auto flex flex-col min-h-[calc(100vh-8rem)]"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="max-w-7xl mx-auto px-4 py-8 flex flex-col min-h-[calc(100vh-10rem)]"
     >
-      <FolderContextBanner project={project} />
-
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-semibold uppercase tracking-wider mb-3">
-            <span className="text-[#00E5FF]">Etapa 2 de 5</span>
-          </div>
-          <h2 className="text-3xl font-display font-semibold text-balance">Roteiro Gerado</h2>
-        </div>
-        <button onClick={onBack} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+      <div className="mb-6">
+        <FolderContextBanner project={project} />
       </div>
 
-      <div className="flex-1 relative flex flex-col items-center justify-center">
+      <div className="flex items-center justify-between mb-12">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="p-2 rounded-xl hover:bg-white/5 text-gray-500 hover:text-white transition-all">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h2 className="text-2xl font-display font-bold">Roteiro Sugerido</h2>
+        </div>
+        {!isGenerating && !error && (
+          <button
+            onClick={onNext}
+            className="btn-primary py-3 px-8 rounded-2xl shadow-xl shadow-ai-primary/20"
+          >
+            <span>Aprovar Roteiro</span>
+            <ArrowRight className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
+      <div className="flex-1">
         <AnimatePresence mode="wait">
           {isGenerating ? (
             <motion.div
               key="loader"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="flex flex-col items-center text-center max-w-sm"
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center justify-center py-32 gap-6"
             >
-              <div className="relative mb-8">
-                <div className="absolute inset-0 bg-[#00E5FF] blur-2xl opacity-20 rounded-full animate-pulse" />
-                <Sparkles className="w-16 h-16 text-[#00E5FF] animate-bounce" />
+              <div className="w-20 h-20 relative">
+                <div className="absolute inset-0 bg-ai-primary/20 blur-2xl animate-pulse rounded-full" />
+                <div className="w-full h-full border-2 border-ai-primary/10 border-t-ai-primary rounded-full animate-spin" />
+                <Sparkles className="absolute inset-0 m-auto w-8 h-8 text-ai-primary" />
               </div>
-              <h3 className="text-xl font-display font-semibold mb-2">Escrevendo o roteiro perfeito...</h3>
-              <p className="text-gray-400 text-sm">Aplicando princípios de neurociência e ganchos de retenção.</p>
+              <div className="text-center">
+                <h3 className="text-xl font-bold mb-2">Escrevendo o roteiro...</h3>
+                <p className="text-gray-500">Nossa IA está aplicando técnicas de retenção viral.</p>
+              </div>
             </motion.div>
           ) : error ? (
-            <motion.div
-              key="error"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex flex-col items-center text-center max-w-sm gap-4"
-            >
-              <AlertCircle className="w-12 h-12 text-rose-400" />
-              <p className="text-rose-400 text-sm">{error}</p>
-              <button
-                onClick={handleRegenerate}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white transition-colors"
-              >
-                <RotateCw className="w-4 h-4" /> Tentar novamente
-              </button>
-            </motion.div>
+            <div className="glass-card p-12 text-center max-w-md mx-auto">
+              <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
+              <p className="text-gray-300 mb-6">{error}</p>
+              <button onClick={handleRegenerate} className="text-ai-primary font-bold hover:underline uppercase text-xs tracking-widest">Tentar Novamente</button>
+            </div>
           ) : script ? (
             <motion.div
               key="content"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="w-full h-full flex flex-col"
+              className="grid lg:grid-cols-12 gap-8 items-start"
             >
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="bg-[#141415]/80 border border-[#ffffff1a] rounded-3xl p-6 backdrop-blur-xl shadow-2xl relative">
-                    <div className="absolute top-4 right-4 flex gap-2">
-                      <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors" title="Editar manual">
-                        <Edit2 className="w-4 h-4" />
-                      </button>
+              {/* Editor Principal */}
+              <div className="lg:col-span-8 space-y-6">
+                <div className="glass-card p-10 min-h-[500px] border-white/5 bg-[#141415]/50">
+                  <div className="mb-10 group">
+                    <p className="text-[10px] font-bold text-ai-primary uppercase tracking-[0.2em] mb-4">Título do Projeto</p>
+                    <h3 
+                      className="text-4xl font-display font-bold text-white outline-none selection:bg-ai-primary/30" 
+                      contentEditable 
+                      suppressContentEditableWarning
+                    >
+                      {script.title}
+                    </h3>
+                  </div>
+
+                  <div className="space-y-12">
+                    <div className="p-8 rounded-3xl bg-ai-primary/5 border border-ai-primary/10 relative overflow-hidden group">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-ai-primary/40" />
+                      <div className="flex items-center gap-2 text-[10px] font-bold text-ai-primary uppercase tracking-widest mb-4">
+                        <Zap className="w-3 h-3" /> Gancho de Retenção
+                      </div>
+                      <p className="text-xl text-gray-200 font-medium leading-relaxed italic selection:bg-ai-primary/30">
+                        "{script.hook}"
+                      </p>
                     </div>
 
-                    <div className="mb-6">
-                      <p className="text-xs font-semibold text-[#7B61FF] uppercase tracking-wider mb-2">Título do Vídeo</p>
-                      <h3 className="text-2xl font-display font-semibold text-white outline-none" contentEditable suppressContentEditableWarning>
-                        {script.title}
-                      </h3>
+                    <div className="group">
+                      <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-6 border-b border-white/5 pb-2">Conteúdo do Vídeo</p>
+                      <div
+                        className="text-lg text-gray-300 leading-loose outline-none whitespace-pre-wrap selection:bg-ai-primary/30 min-h-[200px]"
+                        contentEditable
+                        suppressContentEditableWarning
+                      >
+                        {script.body}
+                      </div>
                     </div>
 
-                    <div className="space-y-6">
-                      <div className="p-4 rounded-xl bg-gradient-to-r from-rose-500/10 to-transparent border-l-4 border-rose-500">
-                        <p className="text-xs font-semibold text-rose-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                          <Star className="w-3 h-3" /> Gancho Viral (0-3s)
-                        </p>
-                        <p className="text-lg text-white font-medium">"{script.hook}"</p>
+                    <div className="p-8 rounded-3xl bg-ai-secondary/5 border border-ai-secondary/10 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-ai-secondary/40" />
+                      <div className="flex items-center gap-2 text-[10px] font-bold text-ai-secondary uppercase tracking-widest mb-4">
+                        <MessageSquare className="w-3 h-3" /> Call to Action
                       </div>
-
-                      <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Corpo do Roteiro</p>
-                        <p
-                          className="text-gray-300 leading-relaxed text-[15px] outline-none whitespace-pre-wrap"
-                          contentEditable
-                          suppressContentEditableWarning
-                        >
-                          {script.body}
-                        </p>
-                      </div>
-
-                      <div className="p-4 rounded-xl bg-gradient-to-r from-[#00E5FF]/10 to-transparent border-l-4 border-[#00E5FF]">
-                        <p className="text-xs font-semibold text-[#00E5FF] uppercase tracking-wider mb-2 flex items-center gap-1">
-                          <MessageSquare className="w-3 h-3" /> Call to Action
-                        </p>
-                        <p className="text-gray-200">"{script.cta}"</p>
-                      </div>
+                      <p className="text-lg text-gray-200 font-medium">"{script.cta}"</p>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="space-y-4">
-                  <div className="bg-[#141415]/80 border border-[#ffffff1a] rounded-2xl p-5 backdrop-blur-xl">
-                    <h4 className="font-semibold text-white flex items-center gap-2 mb-4">
-                      <Clock className="w-4 h-4 text-[#7B61FF]" /> Detalhes
+              {/* Sidebar de Info */}
+              <div className="lg:col-span-4 space-y-4">
+                <div className="glass-card p-6 space-y-8">
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-6 flex items-center gap-2">
+                      <Clock className="w-4 h-4" /> Estimativas
                     </h4>
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       <div>
-                        <p className="text-xs text-gray-500 uppercase mb-1">Duração Estimada</p>
-                        <p className="text-2xl font-display font-semibold">{script.duration_seconds} Segundos</p>
-                        <div className="w-full bg-[#1A1A1E] h-2 rounded-full mt-2 overflow-hidden">
-                          <div className="bg-gradient-to-r from-[#7B61FF] to-[#00E5FF] h-full" style={{ width: `${durationPercent}%` }} />
+                        <div className="flex justify-between items-end mb-2">
+                          <p className="text-sm text-gray-400">Duração do vídeo</p>
+                          <p className="text-2xl font-display font-bold">{script.duration_seconds}s</p>
+                        </div>
+                        <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                          <div className="h-full bg-ai-primary" style={{ width: `${Math.min((script.duration_seconds / 60) * 100, 100)}%` }} />
                         </div>
                       </div>
-                      <div className="pt-4 border-t border-[#ffffff0a]">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Tom de Voz</p>
-                        <p className="text-sm font-medium">{script.voice_tone}</p>
-                      </div>
-                      <div className="pt-4 border-t border-[#ffffff0a]">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Velocidade da Narração</p>
-                        <p className="text-sm font-medium">{script.narration_speed}</p>
-                      </div>
-                      {metadata && (
-                        <div className="pt-4 border-t border-[#ffffff0a]">
-                          <p className="text-xs text-gray-500 uppercase mb-2">Hashtags</p>
-                          <div className="flex flex-wrap gap-1">
-                            {metadata.hashtags.slice(0, 5).map(tag => (
-                              <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-[#7B61FF]/20 text-[#7B61FF]">
-                                #{tag.replace(/^#/, '')}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
 
-                  <button
-                    onClick={handleRegenerate}
-                    className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl border border-white/10 hover:bg-white/5 transition-colors font-medium text-gray-300"
-                  >
-                    <RotateCw className="w-4 h-4" />
-                    Gerar Nova Versão
-                  </button>
+                  <div className="pt-8 border-t border-white/5">
+                    <h4 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Configuração Sugerida</h4>
+                    <div className="grid grid-cols-1 gap-3">
+                      <InfoItem label="Tom de Voz" value={script.voice_tone} />
+                      <InfoItem label="Velocidade" value={script.narration_speed} />
+                    </div>
+                  </div>
 
-                  {scenes.length > 0 && (
-                    <div className="bg-[#141415]/80 border border-[#ffffff1a] rounded-2xl p-4 backdrop-blur-xl">
-                      <p className="text-xs font-semibold text-gray-500 uppercase mb-3">{scenes.length} Cenas geradas</p>
-                      <div className="space-y-2">
-                        {scenes.map(s => (
-                          <div key={s.id} className="text-xs text-gray-400 flex items-start gap-2">
-                            <span className="text-[#7B61FF] font-mono shrink-0">C{s.scene_number}</span>
-                            <span className="line-clamp-1">{s.description}</span>
-                          </div>
+                  {metadata && (
+                    <div className="pt-8 border-t border-white/5">
+                      <h4 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Otimização SEO</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {metadata.hashtags.map(tag => (
+                          <span key={tag} className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-gray-500">
+                            #{tag.replace(/^#/, '')}
+                          </span>
                         ))}
                       </div>
                     </div>
                   )}
                 </div>
-              </div>
 
-              <div className="mt-auto flex justify-between items-center bg-[#141415]/50 p-4 rounded-2xl border border-[#ffffff0a]">
-                <p className="text-sm text-gray-400">Tudo certo com o roteiro?</p>
                 <button
-                  onClick={onNext}
-                  className="flex items-center gap-2 px-8 py-3 rounded-xl bg-white text-black font-semibold hover:bg-gray-200 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.15)]"
+                  onClick={handleRegenerate}
+                  className="w-full py-4 glass-card border-white/5 hover:bg-white/[0.04] transition-all flex items-center justify-center gap-3 text-xs font-bold text-gray-500 hover:text-white uppercase tracking-widest"
                 >
-                  <PlayCircle className="w-5 h-5" />
-                  <span>Aprovar e Gerar Imagens</span>
+                  <RotateCw className="w-4 h-4" />
+                  Regerar Roteiro
                 </button>
               </div>
             </motion.div>
@@ -251,5 +231,14 @@ export default function Step2Script({ project, onNext, onBack }: Step2ScriptProp
         </AnimatePresence>
       </div>
     </motion.div>
+  );
+}
+
+function InfoItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-[10px] text-gray-600 uppercase font-bold">{label}</p>
+      <p className="text-sm text-gray-300 font-medium">{value}</p>
+    </div>
   );
 }
