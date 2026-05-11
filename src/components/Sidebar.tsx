@@ -49,8 +49,8 @@ export default function Sidebar({ currentStep, onNavigateHome, onNavigateProject
         </button>
 
         <div className="px-6 mb-10 flex items-center gap-3">
-          <ClipaiLogo className="w-10 h-10" />
-          <span className="font-display font-bold text-xl tracking-tight text-white">Clip<span className="text-[#00E5FF]">ai</span></span>
+          <ClipaaiLogo className="w-10 h-10" />
+          <span className="font-display font-bold text-xl tracking-tight text-white">Clipa<span className="text-[#00E5FF]">ai</span></span>
         </div>
 
         <nav className="flex-1 w-full px-3 space-y-1">
@@ -95,16 +95,16 @@ export default function Sidebar({ currentStep, onNavigateHome, onNavigateProject
   );
 }
 
-function ClipaiLogo({ className = '' }: { className?: string }) {
+function ClipaaiLogo({ className = '' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id="clipai-grad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+        <linearGradient id="clipaai-grad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
           <stop stopColor="#00E5FF" />
           <stop offset="1" stopColor="#7B61FF" />
         </linearGradient>
       </defs>
-      <rect x="2" y="10" width="36" height="24" rx="4" fill="url(#clipai-grad)" />
+      <rect x="2" y="10" width="36" height="24" rx="4" fill="url(#clipaai-grad)" />
       <rect x="2" y="10" width="36" height="7" rx="4" fill="rgba(0,0,0,0.35)" />
       <clipPath id="cp-top">
         <rect x="2" y="10" width="36" height="7" rx="4" />

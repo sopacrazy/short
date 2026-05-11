@@ -139,7 +139,8 @@ export async function renderVideo(projectId, onProgress) {
     const serveUrl = await getBundle();
     const fps = 30;
     const END_CARD_SECONDS = endCardUrl ? 5 : 0;
-    const durationInFrames = Math.round((audioDuration + END_CARD_SECONDS) * fps);
+    const SAFETY_BUFFER = 2.5; // Margem de segurança para não cortar o final
+    const durationInFrames = Math.round((audioDuration + END_CARD_SECONDS + SAFETY_BUFFER) * fps);
     const outputPath = resolve(tmpdir(), `astrashorts-${projectId}.mp4`);
     console.log(`[Render] Renderizando ${audioDuration.toFixed(1)}s @ ${fps}fps → ${outputPath}`);
     const browserExecutable = detectChrome();

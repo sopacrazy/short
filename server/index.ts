@@ -130,10 +130,20 @@ app.use('/api/projects/:projectId/images', authMiddleware, imagesRouter);
 app.use('/api/projects/:projectId/render', authMiddleware, renderRouter);
 app.use('/api/render', authMiddleware, renderRouter);
 
+// Servir o frontend em produção
+const distPath = join(__dirname, '../dist');
+if (existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/outputs')) return next();
+    res.sendFile(join(distPath, 'index.html'));
+  });
+}
+
 // Em desenvolvimento local inicia o servidor. No Vercel exporta o app.
 if (process.env.VERCEL !== '1') {
-  app.listen(PORT, () => {
-    console.log(`\n🚀 Clipai Backend rodando em http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n🚀 Clipaai Backend rodando em http://localhost:${PORT}`);
     console.log(`   Health: http://localhost:${PORT}/api/health\n`);
     console.log('   Serviços configurados:');
     console.log(`   ${process.env.OPENAI_API_KEY      ? '✅' : '❌'} OpenAI`);

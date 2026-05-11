@@ -197,10 +197,25 @@ router.post('/:id/soundtrack', authMiddleware, async (req, res) => {
 router.delete('/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
-    // Verifica se o projeto pertence ao usuário
-    const { data: project } = await supabase.from('projects').select('id').eq('id', id).eq('user_id', userId).single();
-    if (!project)
-        return res.status(403).json({ error: 'Não autorizado' });
+    console.log(`[Delete] Tentativa de exclusão: Projeto ${id} pelo usuário ${userId}`);
+    // Verifica se o projeto pertence ao usuário - usa query simples para evitar PGRST116
+    const { data: projects, error: checkError } = await supabase
+        .from('projects')
+        .select('id, user_id')
+        .eq('id', id);
+    if (checkError) {
+        console.error(`[Delete] Erro ao buscar projeto ${id}:`, checkError);
+        return res.status(500).json({ error: 'Erro interno ao validar projeto' });
+    }
+    if (!projects || projects.length === 0) {
+        console.warn(`[Delete] Projeto ${id} não encontrado na tabela 'projects'.`);
+        return res.status(404).json({ error: 'Projeto não encontrado ou já excluído' });
+    }
+    const project = projects[0];
+    if (project.user_id !== userId) {
+        console.error(`[Delete] BLOQUEADO: Projeto pertence a ${project.user_id}, mas requisitante é ${userId}`);
+        return res.status(403).json({ error: 'Você não tem permissão para excluir este projeto' });
+    }
     // Limpa arquivos de storage (ignora erros — arquivo pode não existir)
     await Promise.allSettled([
         supabase.storage.from('videos').remove([`videos/${id}.mp4`]),

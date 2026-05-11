@@ -15,8 +15,15 @@ import foldersRouter from './routes/folders.js';
 import youtubeRouter from './routes/youtube.js';
 import { listVoices } from './services/elevenlabs.service.js';
 import { authMiddleware } from './middleware/auth.js';
+import { existsSync, mkdirSync } from 'fs';
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
+// Garante que a pasta de saídas existe
+const outputsDir = join(__dirname, '../outputs');
+if (!existsSync(outputsDir))
+    mkdirSync(outputsDir, { recursive: true });
+app.use('/outputs', express.static(outputsDir));
+app.use(express.static(join(__dirname, '../public')));
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',')
     : ['http://localhost'];
