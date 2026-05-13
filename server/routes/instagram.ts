@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
-import { uploadReel, getInstagramStatus } from '../services/instagram.service';
+import { uploadReel, uploadPhoto, getInstagramStatus } from '../services/instagram.service';
 import { supabase } from '../services/supabase.service';
 
 const router = Router();
@@ -64,6 +64,19 @@ router.post('/upload', authMiddleware, async (req, res) => {
     res.json({ instagram_url: result.url });
   } catch (error: any) {
     console.error('[Instagram Route Error]', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Publicar imagem (post de feed)
+router.post('/upload-photo', authMiddleware, async (req, res) => {
+  const { imageUrl, caption } = req.body;
+  if (!imageUrl) return res.status(400).json({ error: 'imageUrl é obrigatório' });
+  try {
+    const result = await uploadPhoto(imageUrl, caption ?? '');
+    res.json({ instagram_url: result.url });
+  } catch (error: any) {
+    console.error('[Instagram Route Error - Photo]', error);
     res.status(500).json({ error: error.message });
   }
 });

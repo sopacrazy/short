@@ -105,6 +105,9 @@ export async function uploadToYouTube(
   const allTags = [...new Set([...cleanChannelTags, ...projectTags, 'Shorts'])];
   const fullDescription = `${description}\n\n${projectTags.map(t => `#${t}`).join(' ')}\n\n#Shorts`;
 
+  const arrayBuffer = await videoRes.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
   const response = await youtube.videos.insert({
     part: ['snippet', 'status'],
     requestBody: {
@@ -124,7 +127,7 @@ export async function uploadToYouTube(
     },
     media: {
       mimeType: 'video/mp4',
-      body: Readable.fromWeb(videoRes.body as Parameters<typeof Readable.fromWeb>[0]),
+      body: Readable.from(buffer),
     },
   });
 

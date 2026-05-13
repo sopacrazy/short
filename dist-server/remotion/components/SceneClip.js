@@ -53,7 +53,10 @@ const MOVEMENTS = [
 export const SceneClip = ({ imageUrl, sceneIndex = 0, staticDisplay = false }) => {
     const frame = useCurrentFrame();
     const { durationInFrames } = useVideoConfig();
-    const opacity = interpolate(frame, [0, 3], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+    const isFirstScene = sceneIndex === 0;
+    const opacity = (isFirstScene || staticDisplay)
+        ? 1
+        : interpolate(frame, [0, 3], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
     if (staticDisplay) {
         return (_jsx(AbsoluteFill, { style: { opacity, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }, children: _jsx(Img, { src: imageUrl, style: { width: '100%', height: '100%', objectFit: 'contain' } }) }));
     }

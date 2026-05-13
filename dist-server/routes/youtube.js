@@ -107,6 +107,7 @@ router.post('/upload', authMiddleware, async (req, res) => {
         res.json({ youtube_url: youtubeUrl });
     }
     catch (err) {
+        console.error('[YouTube Upload Error]:', err);
         const message = err instanceof Error ? err.message : 'Erro ao publicar no YouTube';
         res.status(500).json({ error: message });
     }

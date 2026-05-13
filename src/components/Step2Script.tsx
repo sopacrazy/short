@@ -127,24 +127,24 @@ export default function Step2Script({ project, onNext, onBack }: Step2ScriptProp
               key="content"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="grid lg:grid-cols-12 gap-8 items-start"
+              className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start"
             >
               {/* Editor Principal */}
               <div className="lg:col-span-8 space-y-6">
-                <div className="glass-card p-10 min-h-[500px] border-white/5 bg-[#141415]/50">
-                  <div className="mb-10 group">
+                <div className="glass-card p-5 sm:p-10 min-h-[500px] border-white/5 bg-[#141415]/50">
+                  <div className="mb-6 sm:mb-10 group">
                     <p className="text-[10px] font-bold text-ai-primary uppercase tracking-[0.2em] mb-4">Título do Projeto</p>
-                    <h3 
-                      className="text-4xl font-display font-bold text-white outline-none selection:bg-ai-primary/30" 
-                      contentEditable 
+                    <h3
+                      className="text-2xl sm:text-4xl font-display font-bold text-white outline-none selection:bg-ai-primary/30"
+                      contentEditable
                       suppressContentEditableWarning
                     >
                       {script.title}
                     </h3>
                   </div>
 
-                  <div className="space-y-12">
-                    <div className="p-8 rounded-3xl bg-ai-primary/5 border border-ai-primary/10 relative overflow-hidden group">
+                  <div className="space-y-6 sm:space-y-12">
+                    <div className="p-5 sm:p-8 rounded-3xl bg-ai-primary/5 border border-ai-primary/10 relative overflow-hidden group">
                       <div className="absolute top-0 left-0 w-1 h-full bg-ai-primary/40" />
                       <div className="flex items-center gap-2 text-[10px] font-bold text-ai-primary uppercase tracking-widest mb-4">
                         <Zap className="w-3 h-3" /> Gancho de Retenção
@@ -165,7 +165,7 @@ export default function Step2Script({ project, onNext, onBack }: Step2ScriptProp
                       </div>
                     </div>
 
-                    <div className="p-8 rounded-3xl bg-ai-secondary/5 border border-ai-secondary/10 relative overflow-hidden">
+                    <div className="p-5 sm:p-8 rounded-3xl bg-ai-secondary/5 border border-ai-secondary/10 relative overflow-hidden">
                       <div className="absolute top-0 left-0 w-1 h-full bg-ai-secondary/40" />
                       <div className="flex items-center gap-2 text-[10px] font-bold text-ai-secondary uppercase tracking-widest mb-4">
                         <MessageSquare className="w-3 h-3" /> Call to Action

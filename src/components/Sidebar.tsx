@@ -1,4 +1,4 @@
-import { Home, Video, FolderHeart, Settings, User, Zap, X, CheckCircle2, XCircle } from 'lucide-react';
+import { Home, Video, Settings, X, CheckCircle2, XCircle, Quote, Lightbulb, Images } from 'lucide-react';
 import { AppStep } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import React from 'react';
@@ -7,12 +7,15 @@ interface SidebarProps {
   currentStep: AppStep;
   onNavigateHome: () => void;
   onNavigateProjects: () => void;
+  onNavigateViralPhrases: () => void;
+  onNavigateCuriosityPost: () => void;
+  onNavigateCuriosityGallery: () => void;
   isOpen: boolean;
   onClose: () => void;
   integrationsStatus: { ai: boolean; youtube: boolean; instagram: boolean };
 }
 
-export default function Sidebar({ currentStep, onNavigateHome, onNavigateProjects, isOpen, onClose, integrationsStatus }: SidebarProps) {
+export default function Sidebar({ currentStep, onNavigateHome, onNavigateProjects, onNavigateViralPhrases, onNavigateCuriosityPost, onNavigateCuriosityGallery, isOpen, onClose, integrationsStatus }: SidebarProps) {
   const handleNav = (fn?: () => void) => {
     fn?.();
     onClose();
@@ -56,12 +59,13 @@ export default function Sidebar({ currentStep, onNavigateHome, onNavigateProject
         <nav className="flex-1 w-full px-3 space-y-1">
           <NavItem icon={<Home className="w-4.5 h-4.5" />} label="Início" isActive={currentStep === AppStep.DASHBOARD} onClick={() => handleNav(onNavigateHome)} />
           <NavItem icon={<Video className="w-4.5 h-4.5" />} label="Projetos" isActive={currentStep === AppStep.PROJECTS} onClick={() => handleNav(onNavigateProjects)} />
-          <NavItem icon={<FolderHeart className="w-4.5 h-4.5" />} label="Arquivos" isActive={false} />
-          
+
           <div className="pt-8 pb-2 px-4">
             <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Ferramentas</span>
           </div>
-          <NavItem icon={<Zap className="w-4.5 h-4.5" />} label="Processamento" isActive={false} />
+          <NavItem icon={<Quote className="w-4.5 h-4.5" />} label="Post de Frases" isActive={currentStep === AppStep.VIRAL_PHRASES} onClick={() => handleNav(onNavigateViralPhrases)} />
+          <NavItem icon={<Lightbulb className="w-4.5 h-4.5" />} label="Post de Curiosidades" isActive={currentStep === AppStep.CURIOSITY_POST} onClick={() => handleNav(onNavigateCuriosityPost)} />
+          <NavItem icon={<Images className="w-4.5 h-4.5" />} label="Galeria de Posts" isActive={currentStep === AppStep.CURIOSITY_GALLERY} onClick={() => handleNav(onNavigateCuriosityGallery)} />
           <NavItem icon={<Settings className="w-4.5 h-4.5" />} label="Configurações" isActive={false} />
         </nav>
 
@@ -70,14 +74,6 @@ export default function Sidebar({ currentStep, onNavigateHome, onNavigateProject
             <h4 className="text-[10px] font-bold text-gray-600 uppercase tracking-widest px-1">Conexões</h4>
             
             <div className="space-y-3">
-              <div className="flex items-center justify-between group/status">
-                <div className="flex items-center gap-2">
-                  <div className={`w-1.5 h-1.5 rounded-full ${integrationsStatus.ai ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500'}`} />
-                  <span className="text-xs text-gray-500 group-hover/status:text-gray-300 transition-colors">Sistema IA</span>
-                </div>
-                {integrationsStatus.ai && <CheckCircle2 className="w-3 h-3 text-emerald-500/50" />}
-              </div>
-
               <div className="flex items-center justify-between group/status">
                 <div className="flex items-center gap-2">
                   <div className={`w-1.5 h-1.5 rounded-full ${integrationsStatus.youtube ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500'}`} />

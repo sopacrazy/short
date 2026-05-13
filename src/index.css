@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Great+Vibes&family=Montserrat:wght@400;700;900&family=Bebas+Neue&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -9,6 +10,12 @@
   
   --font-display: "Outfit", sans-serif;
   --font-sans: "Inter", sans-serif;
+
+  /* Fontes elegantes para Posts de Frases */
+  --font-premium-display: "Playfair Display", serif;
+  --font-premium-serif: "Cormorant Garamond", serif;
+  --font-premium-script: "Great Vibes", cursive;
+  --font-premium-sans: "Montserrat", sans-serif;
 }
 
 @layer base {
@@ -36,6 +43,29 @@
 
   .icon-circle {
     @apply w-14 h-14 rounded-2xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110;
+  }
+
+  .text-gold {
+    background: linear-gradient(to bottom, #FFE4A1 0%, #E2B04A 50%, #9B701F 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  }
+
+  .font-premium-display {
+    font-family: var(--font-premium-display);
+  }
+
+  .font-premium-serif {
+    font-family: var(--font-premium-serif);
+  }
+
+  .font-premium-script {
+    font-family: var(--font-premium-script);
+  }
+
+  .font-premium-sans {
+    font-family: var(--font-premium-sans);
   }
 }
 

@@ -68,11 +68,19 @@ function parseTimestampsToChunks(timestamps) {
     return chunks;
 }
 export const VideoComposition = ({ scenes, audioUrl, backgroundMusicUrl, musicVolume = 0.15, endCardUrl, timestamps }) => {
-    const { fps } = useVideoConfig();
+    const { fps, durationInFrames } = useVideoConfig();
     const END_CARD_SECONDS = 5;
-    const sceneFrames = scenes.map((s) => Math.round(s.durationSeconds * fps));
+    const endCardFrames = endCardUrl ? Math.round(END_CARD_SECONDS * fps) : 0;
+    const availableFramesForScenes = durationInFrames - endCardFrames;
+    // Calcula frames de cada cena garantindo que a última cubra todo o espaço até o end card
+    const sceneFrames = scenes.map((s, i) => {
+        if (i === scenes.length - 1) {
+            const prevSum = scenes.slice(0, -1).reduce((acc, curr) => acc + Math.round(curr.durationSeconds * fps), 0);
+            return Math.max(1, availableFramesForScenes - prevSum);
+        }
+        return Math.round(s.durationSeconds * fps);
+    });
     const totalSceneFrames = sceneFrames.reduce((a, b) => a + b, 0);
-    const endCardFrames = endCardUrl ? END_CARD_SECONDS * fps : 0;
     const chunks = useMemo(() => parseTimestampsToChunks(timestamps), [timestamps]);
     let offset = 0;
     return (_jsxs(AbsoluteFill, { style: { backgroundColor: '#000' }, children: [audioUrl && _jsx(Audio, { src: audioUrl, startFrom: 0, volume: 1 }), backgroundMusicUrl && (_jsx(Audio, { src: backgroundMusicUrl, volume: musicVolume })), scenes.map((scene, i) => {

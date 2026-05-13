@@ -1,8 +1,6 @@
 import OpenAI from 'openai';
 import type { GenerateScriptResponse } from '../types/index.js';
 
-const DEFAULT_CLIENT = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 const MODEL = 'gpt-4o';
 
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -297,4 +295,57 @@ Responda apenas com JSON: { "suggestions": ["tema 1", "tema 2", ...] }`,
 
   const raw = JSON.parse(response.choices[0].message.content!);
   return raw.suggestions as string[];
+}
+
+export async function generateViralPhrase(query: string, apiKey?: string | null) {
+  if (!apiKey) throw new Error('Configuração ausente: OpenAI API Key não encontrada para este usuário.');
+  const client = new OpenAI({ apiKey });
+  
+  const response = await client.chat.completions.create({
+    model: MODEL,
+    messages: [
+      {
+        role: 'system',
+        content: `Você é uma IA especializada em criar posts virais para redes sociais.
+O usuário irá informar uma categoria, tema ou sentimento, e você deve criar automaticamente uma composição profissional para Instagram, TikTok, Facebook, Pinterest e Shorts.
+
+OBJETIVO:
+Gerar uma imagem emocional e altamente compartilhável com texto impactante integrado ao visual.
+
+REGRAS IMPORTANTES:
+* O conteúdo deve ser visualmente cinematográfico e emocional.
+* A imagem precisa combinar perfeitamente com o tema solicitado.
+* O texto deve ser curto, forte e fácil de ler.
+* O design deve parecer profissional e moderno.
+* O fundo deve ter espaço para leitura do texto.
+* Adicione um degradê preto suave na parte inferior da imagem para destacar a escrita.
+* O texto principal deve ficar centralizado ou levemente abaixo.
+* Use iluminação dramática e composição cinematográfica.
+* O visual deve parecer conteúdo viral premium de redes sociais.
+
+Responda EXCLUSIVAMENTE com JSON puro:
+{
+  "categoria": "...",
+  "tema_visual": "...",
+  "texto_pre_titulo": "...", 
+  "palavra_chave": "...",
+  "texto_pos_titulo": "...",
+  "referencia": "...",
+  "estilo_fonte": "...",
+  "cores": "...",
+  "prompt": "..."
+}
+
+REGRAS CRÍTICAS DE CAMPOS:
+- 'prompt': Deve ser APENAS a descrição visual para a IA de imagem (Flux). NÃO mencione textos, frases, fontes ou degradês no prompt. A imagem deve ser "limpa" para que possamos colocar o texto por cima.
+- 'referencia': Deve ser curto (ex: 'Salmos 37:5', 'Marcus Aurelius', 'Sabedoria Antiga').
+- 'palavra_chave': Apenas UMA palavra principal para destaque máximo.`
+      },
+      { role: 'user', content: query }
+    ],
+    temperature: 1.0,
+    response_format: { type: 'json_object' },
+  });
+
+  return JSON.parse(response.choices[0].message.content!);
 }

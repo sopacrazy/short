@@ -255,6 +255,13 @@ export const api = {
       for await (const evt of gen) { last = evt; }
       return last as { results: Array<{ scene_number: number; image_url: string | null }>; success: boolean };
     },
+
+    generate: (options: { prompt: string; style?: string }) =>
+      request<{ url: string }>('/images/generate', {
+        method: 'POST',
+        body: JSON.stringify(options),
+        timeout: 180000, // 3 minutes timeout for Replicate Flux
+      }),
   },
 
   render: {
@@ -365,11 +372,131 @@ export const api = {
         body: JSON.stringify({ projectId, caption }),
         timeout: 300000, // 5 minutos (polling)
       }),
+    uploadPhoto: (imageUrl: string, caption: string) =>
+      request<{ instagram_url: string }>('/instagram/upload-photo', {
+        method: 'POST',
+        body: JSON.stringify({ imageUrl, caption }),
+        timeout: 60000,
+      }),
+  },
+
+  viralPhrases: {
+    generate: (query: string) => request<any>('/viral-phrases/generate', {
+      method: 'POST',
+      body: JSON.stringify({ query }),
+      timeout: 120000,
+    }),
+  },
+
+  curiosityPost: {
+    generate: (curiosity: string, language = 'pt') =>
+      request<{ title_white: string; title_yellow: string; description: string; cta: string; caption: string; hashtags: string[]; image_prompt: string }>(
+        '/curiosity-post/generate',
+        { method: 'POST', body: JSON.stringify({ curiosity, language }), timeout: 60000 }
+      ),
+    generateImage: (prompt: string) =>
+      request<{ url: string }>(
+        '/curiosity-post/image',
+        { method: 'POST', body: JSON.stringify({ prompt }), timeout: 180000 }
+      ),
+    suggestions: (query: string, count = 5) =>
+      request<CuriositySuggestion[]>('/curiosity-post/suggestions', {
+        method: 'POST',
+        body: JSON.stringify({ query, count }),
+        timeout: 30000,
+      }),
+    uploadComposed: (imageBase64: string) =>
+      request<{ url: string; path: string }>('/curiosity-post/upload-composed', {
+        method: 'POST',
+        body: JSON.stringify({ imageBase64 }),
+        timeout: 60000,
+      }),
+    generateAdvancedImage: (data: { title_white: string; title_yellow: string; description: string; image_prompt: string }) =>
+      request<{ url: string }>('/curiosity-post/advanced-image', {
+        method: 'POST',
+        body: JSON.stringify(data),
+        timeout: 120000,
+      }),
+  },
+
+  curiosityPosts: {
+    list: (status?: string) =>
+      request<CuriosityPostRecord[]>(`/curiosity-posts${status ? `?status=${status}` : ''}`),
+    create: (data: Partial<CuriosityPostRecord>) =>
+      request<CuriosityPostRecord>('/curiosity-posts', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: Partial<CuriosityPostRecord>) =>
+      request<CuriosityPostRecord>(`/curiosity-posts/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      request(`/curiosity-posts/${id}`, { method: 'DELETE' }),
+  },
+
+  curiosityFolders: {
+    list: () => request<CuriosityFolder[]>('/curiosity-folders'),
+    create: (name: string, emoji: string, language: string, logo_data: string | null) =>
+      request<CuriosityFolder>('/curiosity-folders', {
+        method: 'POST',
+        body: JSON.stringify({ name, emoji, language, logo_data }),
+      }),
+    update: (id: string, updates: Partial<Pick<CuriosityFolder, 'name' | 'emoji' | 'language' | 'logo_data'>>) =>
+      request<CuriosityFolder>(`/curiosity-folders/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+      }),
+    delete: (id: string) =>
+      request(`/curiosity-folders/${id}`, { method: 'DELETE' }),
   },
 
   health: () => request<{ status: string; services: Record<string, boolean> }>('/health'),
   getBaseUrl: () => API_BASE.replace(/\/api$/, ''),
 };
+
+export type PostStatus = 'draft' | 'scheduled' | 'published' | 'failed';
+
+export interface CuriosityPostRecord {
+  id: string;
+  user_id: string;
+  folder_id?: string | null;
+  title_white: string;
+  title_yellow: string;
+  description: string;
+  cta: string;
+  caption: string;
+  hashtags: string[];
+  image_prompt?: string | null;
+  image_url?: string | null;
+  composed_image_path?: string | null;
+  status: PostStatus;
+  error_message?: string | null;
+  scheduled_at?: string | null;
+  published_at?: string | null;
+  instagram_post_id?: string | null;
+  instagram_post_url?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CuriositySuggestion {
+  title: string;
+  description: string;
+  emoji: string;
+  niche: string;
+}
+
+export interface CuriosityFolder {
+  id: string;
+  user_id: string;
+  name: string;
+  emoji: string;
+  language: string;
+  logo_data: string | null;
+  created_at: string;
+}
 
 export interface ThemeSuggestion {
   title: string;

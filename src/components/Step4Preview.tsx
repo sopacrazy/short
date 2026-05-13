@@ -82,7 +82,7 @@ export default function Step4Preview({ project, onNext, onBack }: Step4PreviewPr
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="max-w-7xl mx-auto px-4 py-8"
+      className="max-w-7xl mx-auto px-4 py-6 sm:py-8"
     >
       <div className="mb-8">
         <FolderContextBanner project={project} />
@@ -95,7 +95,7 @@ export default function Step4Preview({ project, onNext, onBack }: Step4PreviewPr
         <h2 className="text-2xl font-display font-bold">Preview e Renderização</h2>
       </div>
 
-      <div className="grid lg:grid-cols-12 gap-16 items-center">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 items-center">
         {/* Celular Cinematic */}
         <div className="lg:col-span-5 flex justify-center">
           <div className="relative w-[320px] aspect-[9/19] rounded-[3rem] bg-black border-[12px] border-[#1A1A1E] shadow-[0_0_80px_rgba(123,97,255,0.15)] overflow-hidden group">
@@ -135,10 +135,10 @@ export default function Step4Preview({ project, onNext, onBack }: Step4PreviewPr
         {/* Info e Controles */}
         <div className="lg:col-span-7 space-y-8">
           <div className="space-y-4">
-            <h3 className="text-4xl font-display font-bold leading-tight">
+            <h3 className="text-2xl sm:text-4xl font-display font-bold leading-tight">
               {renderStatus === 'completed' ? 'Seu Short está pronto!' : 'Quase lá, vamos dar vida ao seu projeto.'}
             </h3>
-            <p className="text-lg text-gray-500 leading-relaxed max-w-lg">
+            <p className="text-base sm:text-lg text-gray-500 leading-relaxed max-w-lg">
               {renderStatus === 'completed' 
                 ? 'O vídeo foi processado com sucesso. Verifique o preview e prossiga para a exportação.' 
                 : 'Clique no botão abaixo para iniciar a montagem final. Nossa IA aplicará legendas, zooms e trilha sonora.'}

@@ -13,7 +13,15 @@ import imagesRouter from './routes/images.js';
 import renderRouter from './routes/render.js';
 import foldersRouter from './routes/folders.js';
 import youtubeRouter from './routes/youtube.js';
+import instagramRouter from './routes/instagram.js';
+import viralPhrasesRouter from './routes/viral_phrases.js';
+import curiosityPostRouter from './routes/curiosity_post.js';
+import curiosityFoldersRouter from './routes/curiosity_folders.js';
+import curiosityPostsRouter from './routes/curiosity_posts.js';
+import { startScheduler } from './services/scheduler.service.js';
 import { listVoices } from './services/elevenlabs.service.js';
+import { generateImage } from './services/flux.service.js';
+import { getUserAIKeys } from './services/settings.service.js';
 import { authMiddleware } from './middleware/auth.js';
 import { existsSync, mkdirSync } from 'fs';
 const app = express();
@@ -45,10 +53,10 @@ app.get('/api/health', (_req, res) => {
             replicate: !!process.env.REPLICATE_API_TOKEN,
             supabase: !!process.env.SUPABASE_URL,
             youtube: !!process.env.GOOGLE_CLIENT_ID,
+            instagram: !!process.env.INSTAGRAM_ACCESS_TOKEN,
         },
     });
 });
-import { getUserAIKeys } from './services/settings.service.js';
 app.get('/api/voices', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     try {
@@ -78,10 +86,34 @@ app.post('/api/topics/suggestions', authMiddleware, async (req, res) => {
 });
 app.use('/api/folders', authMiddleware, foldersRouter);
 app.use('/api/youtube', youtubeRouter);
+app.use('/api/instagram', instagramRouter);
+app.use('/api/viral-phrases', viralPhrasesRouter);
+app.use('/api/curiosity-post', curiosityPostRouter);
+app.use('/api/curiosity-folders', curiosityFoldersRouter);
+app.use('/api/curiosity-posts', curiosityPostsRouter);
 // Servir a trilha sonora padrão da raiz
 app.get('/api/static/suspense.mp3', (req, res) => {
     const filePath = join(__dirname, '../suspense.mp3');
     res.sendFile(filePath);
+});
+// Proxy de imagem (contornar CORS para Canvas API no cliente)
+app.get('/api/proxy/image', async (req, res) => {
+    const { url } = req.query;
+    if (!url || typeof url !== 'string')
+        return res.status(400).send('URL necessária');
+    try {
+        const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (!response.ok)
+            throw new Error(`HTTP ${response.status}`);
+        res.setHeader('Content-Type', response.headers.get('Content-Type') || 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        const buf = await response.arrayBuffer();
+        res.send(Buffer.from(buf));
+    }
+    catch (err) {
+        res.status(500).json({ error: String(err) });
+    }
 });
 // Proxy para áudio (contornar 403/CORS de bancos de música)
 app.get('/api/proxy/audio', async (req, res) => {
@@ -109,22 +141,46 @@ app.get('/api/proxy/audio', async (req, res) => {
         res.status(500).json({ error: 'Erro ao processar áudio', message: err instanceof Error ? err.message : String(err) });
     }
 });
+app.post('/api/images/generate', authMiddleware, async (req, res) => {
+    const { prompt, style = 'cinematic' } = req.body;
+    const userId = req.user.id;
+    try {
+        const keys = await getUserAIKeys(userId);
+        const img = await generateImage(prompt, style, keys.replicate_token);
+        res.json({ url: img.image_url });
+    }
+    catch (err) {
+        res.status(500).json({ error: String(err) });
+    }
+});
 app.use('/api/projects', projectsRouter);
 app.use('/api/projects/:projectId/script', authMiddleware, scriptsRouter);
 app.use('/api/projects/:projectId/narration', authMiddleware, narrationRouter);
 app.use('/api/projects/:projectId/images', authMiddleware, imagesRouter);
 app.use('/api/projects/:projectId/render', authMiddleware, renderRouter);
 app.use('/api/render', authMiddleware, renderRouter);
+// Servir o frontend em produção
+const distPath = join(__dirname, '../dist');
+if (existsSync(distPath)) {
+    app.use(express.static(distPath));
+    app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api') || req.path.startsWith('/outputs'))
+            return next();
+        res.sendFile(join(distPath, 'index.html'));
+    });
+}
 // Em desenvolvimento local inicia o servidor. No Vercel exporta o app.
 if (process.env.VERCEL !== '1') {
-    app.listen(PORT, () => {
-        console.log(`\n🚀 Clipai Backend rodando em http://localhost:${PORT}`);
+    startScheduler();
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`\n🚀 Clipaai Backend rodando em http://localhost:${PORT}`);
         console.log(`   Health: http://localhost:${PORT}/api/health\n`);
         console.log('   Serviços configurados:');
         console.log(`   ${process.env.OPENAI_API_KEY ? '✅' : '❌'} OpenAI`);
         console.log(`   ${process.env.ELEVENLABS_API_KEY ? '✅' : '❌'} ElevenLabs`);
         console.log(`   ${process.env.REPLICATE_API_TOKEN ? '✅' : '❌'} Replicate (Flux)`);
-        console.log(`   ${process.env.SUPABASE_URL ? '✅' : '❌'} Supabase\n`);
+        console.log(`   ${process.env.SUPABASE_URL ? '✅' : '❌'} Supabase`);
+        console.log(`   ${process.env.INSTAGRAM_ACCESS_TOKEN ? '✅' : '❌'} Instagram\n`);
     });
 }
 export default app;

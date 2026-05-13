@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Menu, Settings, LogOut, User, Loader2, Bell, FileText, HelpCircle } from 'lucide-react';
+import { Menu, Settings, LogOut, Bell, HelpCircle } from 'lucide-react';
 import { AppStep, type ProjectContext } from './types';
 import type { ApiProject } from './lib/api';
 import { api } from './lib/api';
@@ -15,6 +15,9 @@ import Step4Preview from './components/Step4Preview';
 import Step5Export from './components/Step5Export';
 import AutoGeneration from './components/AutoGeneration';
 import Auth from './components/Auth';
+import ViralPhrases from './components/ViralPhrases';
+import CuriosityPost from './components/CuriosityPost';
+import CuriosityGallery from './components/CuriosityGallery';
 import SettingsModal from './components/SettingsModal';
 import Toast, { type ToastType } from './components/Toast';
 import { motion, AnimatePresence } from 'motion/react';
@@ -65,9 +68,9 @@ export default function App() {
   const checkIntegrations = async () => {
     try {
       const [voices, yt, insta] = await Promise.all([
-        api.narration.voices().catch(() => []),
-        api.youtube.status().catch(() => ({ connected: false })),
-        api.instagram.status().catch(() => ({ connected: false })),
+        api.narration.voices(),
+        api.youtube.status(),
+        api.instagram.status(),
       ]);
       setIntegrationsStatus({
         ai: voices.length > 0,
@@ -76,6 +79,12 @@ export default function App() {
       });
     } catch (err) {
       console.error('Error checking integrations:', err);
+      // Se falhar a conexão básica ou der 401, e estivermos no início, 
+      // volta para o login para garantir sincronia com o servidor
+      if (currentStep === AppStep.DASHBOARD || currentStep === AppStep.PROJECTS) {
+        notify('Conexão com servidor perdida. Por favor, entre novamente.', 'error');
+        supabase.auth.signOut();
+      }
     }
   };
 
@@ -93,6 +102,21 @@ export default function App() {
   const goToProjects = () => {
     setProject(null);
     setCurrentStep(AppStep.PROJECTS);
+  };
+
+  const goToViralPhrases = () => {
+    setProject(null);
+    setCurrentStep(AppStep.VIRAL_PHRASES);
+  };
+
+  const goToCuriosityPost = () => {
+    setProject(null);
+    setCurrentStep(AppStep.CURIOSITY_POST);
+  };
+
+  const goToCuriosityGallery = () => {
+    setProject(null);
+    setCurrentStep(AppStep.CURIOSITY_GALLERY);
   };
 
   const handleTopicDone = (ctx: ProjectContext) => {
@@ -169,6 +193,9 @@ export default function App() {
     [AppStep.PRODUCTION_ELEMENTS]: 'Produção',
     [AppStep.PREVIEW]: 'Preview',
     [AppStep.EXPORT]: 'Exportar',
+    [AppStep.VIRAL_PHRASES]: 'Post de Frases',
+    [AppStep.CURIOSITY_POST]: 'Post de Curiosidades',
+    [AppStep.CURIOSITY_GALLERY]: 'Galeria de Posts',
   };
 
   return (
@@ -177,6 +204,9 @@ export default function App() {
         currentStep={currentStep}
         onNavigateHome={goToDashboard}
         onNavigateProjects={goToProjects}
+        onNavigateViralPhrases={goToViralPhrases}
+        onNavigateCuriosityPost={goToCuriosityPost}
+        onNavigateCuriosityGallery={goToCuriosityGallery}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         integrationsStatus={integrationsStatus}
@@ -184,7 +214,7 @@ export default function App() {
 
       <main className="flex-1 relative overflow-y-auto flex flex-col">
         {/* Topbar Minimalista ElevenLabs */}
-        <header className="flex items-center justify-between px-8 py-4 bg-ai-dark/50 backdrop-blur-md sticky top-0 z-20 shrink-0">
+        <header className="flex items-center justify-between px-4 sm:px-8 py-4 bg-ai-dark/50 backdrop-blur-md sticky top-0 z-20 shrink-0">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -200,7 +230,6 @@ export default function App() {
           <div className="flex items-center gap-2">
             <div className="hidden md:flex items-center gap-1">
               <HeaderAction icon={<Bell className="w-4 h-4" />} label="Notificações" />
-              <HeaderAction icon={<FileText className="w-4 h-4" />} label="Docs" />
               <HeaderAction icon={<HelpCircle className="w-4 h-4" />} label="Ajuda" />
             </div>
             
@@ -220,14 +249,7 @@ export default function App() {
                     <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-1">Usuário</p>
                     <p className="text-xs text-gray-300 truncate font-medium">{session.user.email}</p>
                   </div>
-                  <button 
-                    onClick={() => setShowSettings(true)}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 text-sm text-gray-400 hover:text-white transition-colors"
-                  >
-                    <Settings className="w-4 h-4" />
-                    Status do Sistema
-                  </button>
-                  <button 
+                  <button
                     onClick={() => supabase.auth.signOut()}
                     className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-rose-500/10 text-sm text-rose-500 transition-colors"
                   >
@@ -251,9 +273,13 @@ export default function App() {
               <Dashboard onStartProject={startNewProject} onEditProject={handleEditProject} onExportProject={handleExportProject} />
             )}
 
-            {currentStep === AppStep.PROJECTS && (
-              <ProjectsView onStartProject={startNewProject} onEditProject={handleEditProject} onExportProject={handleExportProject} />
-            )}
+            {currentStep === AppStep.PROJECTS && <ProjectsView onStartProject={startNewProject} onEditProject={handleEditProject} onExportProject={handleExportProject} />}
+            
+            {currentStep === AppStep.VIRAL_PHRASES && <ViralPhrases />}
+
+            {currentStep === AppStep.CURIOSITY_POST && <CuriosityPost />}
+
+            {currentStep === AppStep.CURIOSITY_GALLERY && <CuriosityGallery />}
 
             {currentStep === AppStep.TOPIC_SELECTION && (
               <Step1Topic onNext={handleTopicDone} onAutoGenerate={handleAutoGenerate} folderContext={pendingFolderDefaults ?? undefined} />
@@ -302,7 +328,7 @@ export default function App() {
         </div>
 
         {/* Global Toasts */}
-        <div className="fixed bottom-8 right-8 z-[100] flex flex-col gap-3">
+        <div className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-[100] flex flex-col gap-3">
           <AnimatePresence>
             {notifications.map(n => (
               <Toast key={n.id} message={n.message} type={n.type} onClose={() => removeNotification(n.id)} />

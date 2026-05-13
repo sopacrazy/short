@@ -85,7 +85,7 @@ export default function Step1Topic({ onNext, onAutoGenerate, folderContext }: St
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="max-w-5xl mx-auto px-4 py-12"
+      className="max-w-5xl mx-auto px-4 py-6 sm:py-12"
     >
       {folderContext?.folderId && (
         <div className="mb-8">
@@ -93,11 +93,11 @@ export default function Step1Topic({ onNext, onAutoGenerate, folderContext }: St
         </div>
       )}
 
-      <div className="mb-12">
-        <h2 className="text-4xl font-display font-bold mb-4">
+      <div className="mb-8 sm:mb-12">
+        <h2 className="text-2xl sm:text-4xl font-display font-bold mb-4">
           O que vamos criar hoje?
         </h2>
-        <p className="text-gray-500 text-lg">
+        <p className="text-gray-500 text-base sm:text-lg">
           Descreva um tema ou escolha uma das categorias em alta para começar.
         </p>
       </div>
@@ -186,41 +186,41 @@ export default function Step1Topic({ onNext, onAutoGenerate, folderContext }: St
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.05 }}
                       className={`
-                        glass-card p-6 cursor-pointer border-white/5 group
+                        glass-card p-4 sm:p-6 cursor-pointer border-white/5 group
                         ${isSelected ? 'bg-ai-primary/10 border-ai-primary/40 ring-1 ring-ai-primary/20' : 'hover:bg-white/[0.03]'}
                       `}
                       onClick={() => setSelectedTheme(isSelected ? null : theme)}
                     >
-                      <div className="flex items-start gap-6">
-                        <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-4xl shrink-0 group-hover:scale-110 transition-transform">
+                      <div className="flex items-start gap-3 sm:gap-6">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-white/5 flex items-center justify-center text-2xl sm:text-4xl shrink-0 group-hover:scale-110 transition-transform">
                           {theme.emoji}
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between gap-4 mb-2">
-                            <h4 className="text-xl font-bold text-white">{theme.title}</h4>
-                            {isSelected && <div className="w-6 h-6 rounded-full bg-ai-primary flex items-center justify-center"><CheckCircle className="w-4 h-4 text-white" /></div>}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-1 sm:mb-2">
+                            <h4 className="text-base sm:text-xl font-bold text-white leading-snug">{theme.title}</h4>
+                            {isSelected && <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-ai-primary flex items-center justify-center shrink-0"><CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-white" /></div>}
                           </div>
-                          <p className="text-gray-500 leading-relaxed mb-4">{theme.description}</p>
-                          
+                          <p className="text-gray-500 text-xs sm:text-sm leading-relaxed mb-3 sm:mb-4 line-clamp-2 sm:line-clamp-none">{theme.description}</p>
+
                           <AnimatePresence>
                             {isSelected && (
-                              <motion.div 
-                                initial={{ opacity: 0, height: 0 }} 
-                                animate={{ opacity: 1, height: 'auto' }} 
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
                                 exit={{ opacity: 0, height: 0 }}
-                                className="flex gap-3 pt-4 border-t border-white/5"
+                                className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-white/5"
                               >
-                                <button 
+                                <button
                                   onClick={(e) => { e.stopPropagation(); handleStart('auto'); }}
-                                  className="btn-primary flex-[1.5] py-4 rounded-2xl flex items-center justify-center gap-3 font-bold text-sm shadow-lg shadow-ai-primary/20 disabled:opacity-50"
+                                  className="btn-primary w-full sm:flex-[1.5] py-3 sm:py-4 rounded-2xl flex items-center justify-center gap-2 font-bold text-sm shadow-lg shadow-ai-primary/20 disabled:opacity-50"
                                   disabled={isCreating}
                                 >
-                                  {isCreating && creatingMode === 'auto' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
+                                  {isCreating && creatingMode === 'auto' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                                   Fluxo Automático
                                 </button>
-                                <button 
+                                <button
                                   onClick={(e) => { e.stopPropagation(); handleStart('manual'); }}
-                                  className="flex-1 py-4 px-6 rounded-2xl bg-white/[0.03] border border-white/10 text-gray-300 font-bold text-xs hover:bg-white/[0.08] hover:border-white/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group disabled:opacity-50 uppercase tracking-widest"
+                                  className="w-full sm:flex-1 py-3 sm:py-4 px-4 rounded-2xl bg-white/[0.03] border border-white/10 text-gray-300 font-bold text-xs hover:bg-white/[0.08] hover:border-white/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group disabled:opacity-50 uppercase tracking-widest"
                                   disabled={isCreating}
                                 >
                                   {isCreating && creatingMode === 'manual' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Settings className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />}

@@ -58,15 +58,15 @@ export default function Dashboard({ onStartProject, onEditProject, onExportProje
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-7xl mx-auto space-y-12 pb-32 px-6"
+      className="max-w-7xl mx-auto space-y-8 sm:space-y-12 pb-24 sm:pb-32 px-4 sm:px-6"
     >
       {/* Top Section with Metrics */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 pt-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-8 pt-6 sm:pt-8">
         <div className="space-y-2">
           <div className="flex items-center gap-2 px-2 py-0.5 rounded-md bg-ai-primary/10 border border-ai-primary/20 w-fit">
             <span className="text-[9px] font-bold text-ai-primary uppercase tracking-[0.2em]">Visão Geral</span>
           </div>
-          <h1 className="text-4xl font-display font-bold tracking-tight text-white">Dashboard</h1>
+          <h1 className="text-2xl sm:text-4xl font-display font-bold tracking-tight text-white">Dashboard</h1>
           <p className="text-gray-500 font-medium text-sm">Bem-vindo de volta. Sua produção está em dia.</p>
         </div>
 
@@ -137,7 +137,7 @@ export default function Dashboard({ onStartProject, onEditProject, onExportProje
             <p className="text-gray-500 text-sm font-medium">Sua galeria está vazia. Comece criando seu primeiro vídeo.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-8">
             {projects.slice(0, 5).map((p, i) => (
               <DashboardProjectCard 
                 key={p.id}

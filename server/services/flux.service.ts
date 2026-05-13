@@ -25,6 +25,7 @@ export async function generateImage(
   prompt: string,
   visualStyle: string = 'cinematic',
   apiKey?: string | null,
+  aspectRatio: string = '9:16',
 ): Promise<FluxResult> {
   if (!apiKey) throw new Error('Configuração ausente: Replicate API Token não encontrado para este usuário.');
   const client = new Replicate({ auth: apiKey });
@@ -35,10 +36,10 @@ export async function generateImage(
   const output = await client.run(FLUX_MODEL, {
     input: {
       prompt: fullPrompt,
-      aspect_ratio: '9:16',
+      aspect_ratio: aspectRatio,
       output_format: 'webp',
       output_quality: 90,
-      safety_tolerance: 2,
+      safety_tolerance: 5,
       // prompt_upsampling: false — NÃO usar: reescreve o prompt e gera imagens erradas
       seed: Math.floor(Math.random() * 2147483647), // seed aleatório garante imagens únicas
     },

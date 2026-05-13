@@ -96,8 +96,8 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
       );
       setYoutubeUrl(youtube_url);
       setShowSuccessModal(true);
-    } catch (err) {
-      setYtError('Erro na publicação');
+    } catch (err: any) {
+      setYtError(err.message || 'Erro na publicação');
     } finally {
       setIsPublishing(false);
     }
@@ -144,7 +144,7 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 1.02 }}
-      className="max-w-7xl mx-auto px-4 py-8 space-y-12"
+      className="max-w-7xl mx-auto px-4 py-6 sm:py-8 space-y-8 sm:space-y-12"
     >
       <FolderContextBanner project={project} />
 
@@ -152,11 +152,11 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-[0.2em]">
           <CheckCircle2 className="w-3 h-3" /> Projeto Concluído
         </div>
-        <h2 className="text-4xl font-display font-bold leading-tight">O seu Short está pronto para o mundo.</h2>
-        <p className="text-gray-500 text-lg">Revise os detalhes finais e escolha como quer distribuir seu conteúdo.</p>
+        <h2 className="text-2xl sm:text-4xl font-display font-bold leading-tight">O seu Short está pronto para o mundo.</h2>
+        <p className="text-gray-500 text-base sm:text-lg">Revise os detalhes finais e escolha como quer distribuir seu conteúdo.</p>
       </div>
 
-      <div className="grid lg:grid-cols-12 gap-12 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-12 items-start">
         <div className="lg:col-span-4 space-y-6">
           <div className="glass-card p-2 bg-[#141415] border-white/5 shadow-2xl">
             <div className="aspect-[9/16] rounded-2xl overflow-hidden bg-black relative">

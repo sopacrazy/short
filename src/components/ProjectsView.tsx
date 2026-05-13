@@ -76,7 +76,7 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-7xl mx-auto space-y-8 pb-32 px-6">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-7xl mx-auto space-y-6 sm:space-y-8 pb-24 sm:pb-32 px-4 sm:px-6">
       
       {/* Header */}
       <div className="flex items-center justify-between gap-4 pt-4 border-b border-white/5 pb-6">
@@ -454,12 +454,25 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
               </div>
               <h3 className="text-2xl font-bold">Excluir Vídeo?</h3>
               <div className="flex flex-col gap-3">
-                <button onClick={async () => {
-                    await api.projects.delete(deleteProject.id);
-                    setProjects(prev => prev.filter(p => p.id !== deleteProject.id));
-                    setDeleteProject(null);
-                  }} className="w-full py-4 rounded-2xl bg-rose-500 text-white font-bold">Excluir Agora</button>
-                <button onClick={() => setDeleteProject(null)} className="w-full py-4 text-xs font-bold text-gray-500">Voltar</button>
+                <button 
+                  disabled={isProcessing}
+                  onClick={async () => {
+                    setIsProcessing(true);
+                    try {
+                      await api.projects.delete(deleteProject.id);
+                      setProjects(prev => prev.filter(p => p.id !== deleteProject.id));
+                      setDeleteProject(null);
+                    } catch (err) {
+                      console.error('Erro ao excluir:', err);
+                    } finally {
+                      setIsProcessing(false);
+                    }
+                  }} 
+                  className="w-full py-4 rounded-2xl bg-rose-500 text-white font-bold disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Excluir Agora'}
+                </button>
+                <button disabled={isProcessing} onClick={() => setDeleteProject(null)} className="w-full py-4 text-xs font-bold text-gray-500">Voltar</button>
               </div>
             </div>
           </ModalOverlay>
@@ -471,8 +484,9 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
 
 function ProjectCard({ project, index, onEdit, onDelete, onExport, onMove }: any) {
   const [imgError, setImgError] = useState(false);
-  const isDone = project.status === 'completed';
-  const isProgress = ['generating_script','generating_narration','generating_images','rendering'].includes(project.status);
+  // Se tem video_url, já está pronto para o usuário, independente do status textual
+  const isDone = project.status === 'completed' || !!project.video_url;
+  const isProgress = ['generating_script','generating_narration','generating_images','rendering'].includes(project.status) && !project.video_url;
   
   return (
     <motion.div
@@ -556,7 +570,7 @@ function ModalOverlay({ children, onClose, className = "max-w-sm" }: { children:
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={onClose} />
-      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className={`relative bg-[#0A0A0B] border border-white/10 p-8 rounded-[2.5rem] w-full shadow-2xl overflow-hidden ${className}`}>
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className={`relative bg-[#0A0A0B] border border-white/10 p-5 sm:p-8 rounded-[2.5rem] w-full shadow-2xl overflow-hidden ${className}`}>
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-ai-primary to-ai-secondary" />
         {children}
       </motion.div>

@@ -22,11 +22,39 @@ async function getBundle(): Promise<string> {
   if (_bundleUrl) return _bundleUrl;
 
   console.log('[Render] Criando bundle Remotion (primeira vez ~30s)...');
-  const entryPoint = resolve(__dirname, '../remotion/index.ts');
+
+  // Tenta em ordem: TS dev → TS server src → JS compilado (prod)
+  const candidates = [
+    resolve(__dirname, '../remotion/index.ts'),           // tsx watch (dev)
+    resolve(__dirname, '../../server/remotion/index.ts'), // raiz do projeto (prod com src)
+    resolve(__dirname, '../remotion/index.js'),           // dist-server (prod sem src)
+  ];
+  const entryPoint = candidates.find(existsSync) ?? candidates[candidates.length - 1];
+  console.log('[Render] entryPoint:', entryPoint);
 
   _bundleUrl = await bundle({
     entryPoint,
-    webpackOverride: (config) => config,
+    webpackOverride: (config) => ({
+      ...config,
+      resolve: {
+        ...config.resolve,
+        fullySpecified: false,
+        extensionAlias: {
+          '.js': ['.js', '.ts', '.tsx'],
+        },
+        extensions: ['.ts', '.tsx', '.js', '.jsx', ...(config.resolve?.extensions ?? [])],
+      },
+      module: {
+        ...config.module,
+        rules: [
+          ...(config.module?.rules ?? []),
+          {
+            test: /\.js$/,
+            resolve: { fullySpecified: false },
+          },
+        ],
+      },
+    }),
   });
 
   console.log('[Render] Bundle criado:', _bundleUrl);
