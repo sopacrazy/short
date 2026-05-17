@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Mic2, 
-  Music, 
-  RefreshCw, 
-  Play, 
-  CheckCircle, 
-  Loader2, 
+import {
+  Mic2,
+  Music,
+  RefreshCw,
+  Play,
+  CheckCircle,
+  Loader2,
   ChevronRight,
   Upload,
   Folder,
@@ -16,7 +16,9 @@ import {
   Type,
   AlertCircle,
   Sparkles,
-  Image as ImageIcon
+  Image as ImageIcon,
+  X,
+  ZoomIn,
 } from 'lucide-react';
 import { api, type ApiProject, type ApiScene, type Voice, type ApiFolder } from '../lib/api';
 
@@ -36,6 +38,17 @@ export default function Step3Production({ project: projectCtx, onNext, onBack }:
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
   const [isGeneratingNarration, setIsGeneratingNarration] = useState(false);
   const [isRegeneratingScene, setIsRegeneratingScene] = useState<string | null>(null);
+  const [isUploadingScene, setIsUploadingScene] = useState<string | null>(null);
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  const closeLightbox = useCallback(() => setLightboxUrl(null), []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeLightbox(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [closeLightbox]);
   const [endCardUrl, setEndCardUrl] = useState<string | null>(null);
   const [isUploadingEndCard, setIsUploadingEndCard] = useState(false);
 
@@ -47,14 +60,24 @@ export default function Step3Production({ project: projectCtx, onNext, onBack }:
       console.log('DEBUG - Projeto:', data.project);
       console.log('DEBUG - Cenas do Banco:', data.scenes);
       
-      setProject(data.project); 
-      setScenes(data.scenes); 
+      setProject(data.project);
+      setScenes(data.scenes);
       setVoices(await api.narration.voices());
       if (data.metadata?.end_card_url) setEndCardUrl(data.metadata.end_card_url);
       if (data.project.folder_id) {
         const f = await api.folders.get(data.project.folder_id);
         setFolder(f);
         if (f.default_voice_id) setSelectedVoice(f.default_voice_id);
+      }
+      // Busca traduções em background (não bloqueia o carregamento)
+      if (data.scenes.length > 0) {
+        api.translate(data.scenes.map(s => s.description))
+          .then(({ translations: t }) => {
+            const map: Record<string, string> = {};
+            data.scenes.forEach((s, i) => { if (t[i]) map[s.id] = t[i]; });
+            setTranslations(map);
+          })
+          .catch(() => { /* silencioso se falhar */ });
       }
     } catch (err) { console.error('Erro ao carregar dados:', err); }
   };
@@ -85,6 +108,23 @@ export default function Step3Production({ project: projectCtx, onNext, onBack }:
       setScenes(prev => prev ? prev.map(s => s.id === sceneId ? updatedScene : s) : null);
     } catch (err) { console.error(err); }
     finally { setIsRegeneratingScene(null); }
+  };
+
+  const handleSceneImageUpload = async (sceneId: string, file: File) => {
+    setIsUploadingScene(sceneId);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = (reader.result as string).split(',')[1];
+        const updatedScene = await api.images.upload(projectCtx.projectId, sceneId, base64, file.type);
+        setScenes(prev => prev ? prev.map(s => s.id === sceneId ? updatedScene : s) : null);
+        setIsUploadingScene(null);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error(err);
+      setIsUploadingScene(null);
+    }
   };
 
   const handleEndCardUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,6 +166,41 @@ export default function Step3Production({ project: projectCtx, onNext, onBack }:
   const narrationReady = !!selectedVoice;
 
   return (
+    <>
+    {/* Lightbox */}
+    <AnimatePresence>
+      {lightboxUrl && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4"
+          onClick={closeLightbox}
+        >
+          <motion.div
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.85, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className="relative max-h-[90vh] max-w-[420px] w-full"
+            onClick={e => e.stopPropagation()}
+          >
+            <img
+              src={lightboxUrl}
+              alt=""
+              className="w-full h-full object-contain rounded-2xl shadow-2xl"
+              style={{ maxHeight: '90vh' }}
+            />
+            <button
+              onClick={closeLightbox}
+              className="absolute top-3 right-3 w-9 h-9 rounded-xl bg-black/70 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
     <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8 pb-24 sm:pb-32 px-4 sm:px-6">
       {/* Folder Context Banner */}
       {folder && (
@@ -182,8 +257,9 @@ export default function Step3Production({ project: projectCtx, onNext, onBack }:
                     {scene.image_url ? (
                       <img
                         src={getFullImageUrl(scene.image_url)}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-zoom-in"
                         alt=""
+                        onClick={() => setLightboxUrl(getFullImageUrl(scene.image_url))}
                       />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-white/[0.02]">
@@ -199,24 +275,41 @@ export default function Step3Production({ project: projectCtx, onNext, onBack }:
                       </div>
                     )}
                     <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white uppercase tracking-widest border border-white/5">CENA {idx + 1}</div>
-                    <button
-                      onClick={() => handleRegenerateSingleScene(scene.id)}
-                      disabled={!!isRegeneratingScene}
-                      className="absolute bottom-2 right-2 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/70 backdrop-blur-sm text-[10px] font-bold text-gray-300 hover:bg-ai-primary hover:text-white transition-all border border-white/10 disabled:opacity-50"
-                    >
-                      <RefreshCw className={`w-3 h-3 ${isRegeneratingScene === scene.id ? 'animate-spin' : ''}`} />
-                      Regenerar
-                    </button>
+                    <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
+                      <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/70 backdrop-blur-sm text-[10px] font-bold text-gray-300 hover:bg-white/20 hover:text-white transition-all border border-white/10 cursor-pointer">
+                        <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleSceneImageUpload(scene.id, f); e.target.value = ''; }} />
+                        {isUploadingScene === scene.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                      </label>
+                      <button
+                        onClick={() => handleRegenerateSingleScene(scene.id)}
+                        disabled={!!isRegeneratingScene || !!isUploadingScene}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/70 backdrop-blur-sm text-[10px] font-bold text-gray-300 hover:bg-ai-primary hover:text-white transition-all border border-white/10 disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isRegeneratingScene === scene.id ? 'animate-spin' : ''}`} />
+                        Regenerar
+                      </button>
+                    </div>
                   </div>
 
                   {/* Desktop: imagem vertical */}
-                  <div className="hidden sm:block w-36 aspect-[9/16] bg-[#0A0A0B] border border-white/5 rounded-2xl overflow-hidden relative shadow-2xl">
+                  <div className="hidden sm:block w-36 aspect-[9/16] bg-[#0A0A0B] border border-white/5 rounded-2xl overflow-hidden relative shadow-2xl group/img">
                     {scene.image_url ? (
-                      <img
-                        src={getFullImageUrl(scene.image_url)}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        alt=""
-                      />
+                      <>
+                        <img
+                          src={getFullImageUrl(scene.image_url)}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-zoom-in"
+                          alt=""
+                          onClick={() => setLightboxUrl(getFullImageUrl(scene.image_url))}
+                        />
+                        <div
+                          onClick={() => setLightboxUrl(getFullImageUrl(scene.image_url))}
+                          className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity bg-black/30 cursor-zoom-in"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center">
+                            <ZoomIn className="w-5 h-5 text-white" />
+                          </div>
+                        </div>
+                      </>
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-white/[0.02]">
                         {isGeneratingImages
@@ -245,25 +338,33 @@ export default function Step3Production({ project: projectCtx, onNext, onBack }:
                       <p className="text-sm sm:text-lg text-gray-100 font-medium leading-relaxed font-display">
                         "{scene.description}"
                       </p>
+                      {translations[scene.id] ? (
+                        <p className="text-xs text-gray-500 leading-relaxed border-l-2 border-white/10 pl-3 italic">
+                          🇧🇷 {translations[scene.id]}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-gray-700 italic">🇧🇷 Traduzindo...</p>
+                      )}
                     </div>
 
-                    {/* Prompt — oculto em mobile */}
-                    <div className="hidden sm:block space-y-2">
-                      <div className="flex items-center gap-2 text-[10px] font-bold text-gray-600 uppercase tracking-[0.2em]">
-                        <Terminal className="w-3.5 h-3.5" /> Prompt de Geração IA
-                      </div>
-                      <div className="bg-black/50 border border-white/5 rounded-2xl p-4 shadow-inner">
-                        <p className="text-xs text-gray-500 font-mono leading-relaxed italic">{scene.image_prompt}</p>
-                      </div>
-                    </div>
                   </div>
 
                   {/* Actions — só desktop (mobile tem botão na imagem) */}
                   <div className="hidden sm:flex items-center justify-end gap-3 pt-4 border-t border-white/5 mt-4">
+                    <label className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 text-[10px] font-bold text-gray-400 hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest border border-white/5 cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleSceneImageUpload(scene.id, f); e.target.value = ''; }}
+                      />
+                      {isUploadingScene === scene.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                      Enviar Imagem
+                    </label>
                     <button
                       onClick={() => handleRegenerateSingleScene(scene.id)}
-                      disabled={!!isRegeneratingScene}
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 text-[10px] font-bold text-gray-400 hover:bg-ai-primary hover:text-white transition-all uppercase tracking-widest border border-white/5"
+                      disabled={!!isRegeneratingScene || !!isUploadingScene}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 text-[10px] font-bold text-gray-400 hover:bg-ai-primary hover:text-white transition-all uppercase tracking-widest border border-white/5 disabled:opacity-50"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isRegeneratingScene === scene.id ? 'animate-spin' : ''}`} />
                       Regenerar Imagem
@@ -336,5 +437,6 @@ export default function Step3Production({ project: projectCtx, onNext, onBack }:
         </div>
       </div>
     </div>
+    </>
   );
 }

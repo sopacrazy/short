@@ -72,7 +72,31 @@ export interface ApiFolder {
   default_youtube_tags: string[];
   auto_publish_youtube: boolean;
   auto_publish_instagram: boolean;
+  youtube_account_id: string | null;
   created_at: string;
+}
+
+export interface YouTubeAccount {
+  id: string;
+  user_id: string;
+  channel_name: string | null;
+  channel_id: string | null;
+  created_at: string;
+}
+
+export interface YouTubeSchedule {
+  id: string;
+  project_id: string | null;
+  user_id: string;
+  youtube_account_id: string | null;
+  title: string | null;
+  thumbnail_url: string | null;
+  scheduled_at: string;
+  youtube_video_id: string | null;
+  youtube_url: string | null;
+  status: string;
+  created_at: string;
+  youtube_accounts?: { channel_name: string | null; channel_id: string | null };
 }
 
 export interface Voice {
@@ -89,13 +113,52 @@ export interface GenerateScriptResult {
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
+// Cache do token em memória — evita getSession() em cada request
+let _cachedToken: string | null = null;
+let _tokenExpiresAt = 0; // epoch ms
+
+function getTokenExpiry(token: string): number {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return (payload.exp ?? 0) * 1000; // converte para ms
+  } catch {
+    return 0;
+  }
+}
+
+// Atualiza cache sempre que o Supabase notificar mudança de sessão
+supabase.auth.onAuthStateChange((_event, session) => {
+  if (session?.access_token) {
+    _cachedToken = session.access_token;
+    _tokenExpiresAt = getTokenExpiry(session.access_token);
+  } else {
+    _cachedToken = null;
+    _tokenExpiresAt = 0;
+  }
+});
+
 async function getAuthHeader(): Promise<Record<string, string>> {
+  const REFRESH_MARGIN = 60_000; // renova 60s antes de expirar
+  const now = Date.now();
+
+  // Token em cache ainda válido → usa diretamente, zero chamada de rede
+  if (_cachedToken && _tokenExpiresAt - now > REFRESH_MARGIN) {
+    return { Authorization: `Bearer ${_cachedToken}` };
+  }
+
+  // Token ausente ou prestes a expirar → busca sessão e atualiza cache
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    return session ? { 'Authorization': `Bearer ${session.access_token}` } : {};
+    if (session?.access_token) {
+      _cachedToken = session.access_token;
+      _tokenExpiresAt = getTokenExpiry(session.access_token);
+      return { Authorization: `Bearer ${_cachedToken}` };
+    }
   } catch {
-    return {};
+    // se falhar usa o cache antigo se ainda tiver algo
+    if (_cachedToken) return { Authorization: `Bearer ${_cachedToken}` };
   }
+  return {};
 }
 
 async function request<T>(path: string, options?: RequestInit & { timeout?: number }): Promise<T> {
@@ -198,7 +261,18 @@ export const api = {
         body: JSON.stringify({ voice_id: voiceId, speed }),
         timeout: 120000,
       }),
-    voices: () => request<Voice[]>('/voices'),
+    voices: (() => {
+      let _cache: Voice[] | null = null;
+      let _expiresAt = 0;
+      const TTL = 10 * 60 * 1000; // 10 minutos
+      return async (): Promise<Voice[]> => {
+        if (_cache && Date.now() < _expiresAt) return _cache;
+        const data = await request<Voice[]>('/voices');
+        _cache = data;
+        _expiresAt = Date.now() + TTL;
+        return data;
+      };
+    })(),
   },
 
   images: {
@@ -357,6 +431,10 @@ export const api = {
   youtube: {
     status: () => request<{ connected: boolean }>('/youtube/status'),
     getAuthUrl: () => request<{ url: string }>('/youtube/auth'),
+    accounts: () => request<YouTubeAccount[]>('/youtube/accounts'),
+    removeAccount: (id: string) => request<{ ok: boolean }>(`/youtube/accounts/${id}`, { method: 'DELETE' }),
+    schedules: (accountId?: string) => request<YouTubeSchedule[]>(`/youtube/schedules${accountId ? `?account_id=${accountId}` : ''}`),
+    deleteSchedule: (id: string) => request<{ ok: boolean }>(`/youtube/schedules/${id}`, { method: 'DELETE' }),
     upload: (projectId: string, scheduledAt?: string) =>
       request<{ youtube_url: string }>('/youtube/upload', {
         method: 'POST',
@@ -366,11 +444,13 @@ export const api = {
   
   instagram: {
     status: () => request<{ connected: boolean; username?: string }>('/instagram/status'),
+    getAuthUrl: () => request<{ url: string }>('/instagram/auth'),
+    disconnect: () => request<{ ok: boolean }>('/instagram/disconnect', { method: 'DELETE' }),
     upload: (projectId: string, caption?: string) =>
       request<{ instagram_url: string }>('/instagram/upload', {
         method: 'POST',
         body: JSON.stringify({ projectId, caption }),
-        timeout: 300000, // 5 minutos (polling)
+        timeout: 300000,
       }),
     uploadPhoto: (imageUrl: string, caption: string) =>
       request<{ instagram_url: string }>('/instagram/upload-photo', {
@@ -378,14 +458,37 @@ export const api = {
         body: JSON.stringify({ imageUrl, caption }),
         timeout: 60000,
       }),
+    scheduleReel: (projectId: string, caption: string, scheduledAt: string) =>
+      request<{ ok: boolean; scheduledAt: string }>('/instagram/schedule-reel', {
+        method: 'POST',
+        body: JSON.stringify({ projectId, caption, scheduledAt }),
+      }),
+    getSchedules: () => request<any[]>('/instagram/schedules'),
+    deleteSchedule: (id: string) => request<{ ok: boolean }>(`/instagram/schedules/${id}`, { method: 'DELETE' }),
+    updateSchedule: (id: string, scheduledAt: string) => request<{ ok: boolean }>(`/instagram/schedules/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ scheduledAt }),
+    }),
   },
 
   viralPhrases: {
-    generate: (query: string) => request<any>('/viral-phrases/generate', {
+    generate: (query: string, category?: string) => request<any>('/viral-phrases/generate', {
       method: 'POST',
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, category }),
       timeout: 120000,
     }),
+    uploadImage: (imageBase64: string) => request<{ url: string }>('/viral-phrases/upload-image', {
+      method: 'POST',
+      body: JSON.stringify({ imageBase64 }),
+      timeout: 30000,
+    }),
+    schedule: (imageUrl: string, caption: string, scheduledAt: string) =>
+      request<{ id: string; scheduled_at: string }>('/viral-phrases/schedule', {
+        method: 'POST',
+        body: JSON.stringify({ imageUrl, caption, scheduledAt }),
+      }),
+    getScheduled: () => request<any[]>('/viral-phrases/scheduled'),
+    cancelScheduled: (id: string) => request<{ ok: boolean }>(`/viral-phrases/scheduled/${id}`, { method: 'DELETE' }),
   },
 
   curiosityPost: {
@@ -451,6 +554,13 @@ export const api = {
     delete: (id: string) =>
       request(`/curiosity-folders/${id}`, { method: 'DELETE' }),
   },
+
+  translate: (texts: string[], targetLang?: string) =>
+    request<{ translations: string[] }>('/translate', {
+      method: 'POST',
+      body: JSON.stringify({ texts, targetLang }),
+      timeout: 30000,
+    }),
 
   health: () => request<{ status: string; services: Record<string, boolean> }>('/health'),
   getBaseUrl: () => API_BASE.replace(/\/api$/, ''),

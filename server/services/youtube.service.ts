@@ -2,7 +2,18 @@ import { google } from 'googleapis';
 import { Readable } from 'stream';
 import { getSupabase } from './supabase.service.js';
 
-const SCOPES = ['https://www.googleapis.com/auth/youtube.upload'];
+const SCOPES = [
+  'https://www.googleapis.com/auth/youtube.upload',
+  'https://www.googleapis.com/auth/youtube.readonly',
+];
+
+export interface YouTubeAccount {
+  id: string;
+  user_id: string;
+  channel_name: string | null;
+  channel_id: string | null;
+  created_at: string;
+}
 
 function createOAuthClient() {
   return new google.auth.OAuth2(
@@ -24,36 +35,75 @@ export function getAuthUrl(userId: string): string {
 export async function exchangeCodeAndStore(code: string, userId: string): Promise<void> {
   const client = createOAuthClient();
   const { tokens } = await client.getToken(code);
+  client.setCredentials(tokens);
+
+  // Busca info do canal para exibir nome amigável
+  let channelName: string | null = null;
+  let channelId: string | null = null;
+  try {
+    const youtube = google.youtube({ version: 'v3', auth: client });
+    const { data } = await youtube.channels.list({ part: ['snippet'], mine: true });
+    const ch = data.items?.[0];
+    if (ch) {
+      channelName = ch.snippet?.title ?? null;
+      channelId = ch.id ?? null;
+    }
+  } catch {
+    // não bloqueia o fluxo se não conseguir o nome
+  }
+
   const { error } = await getSupabase()
-    .from('youtube_tokens')
-    .upsert({
+    .from('youtube_accounts')
+    .insert({
       user_id: userId,
+      channel_name: channelName,
+      channel_id: channelId,
       access_token: tokens.access_token!,
       refresh_token: tokens.refresh_token ?? null,
       expiry_date: tokens.expiry_date ?? null,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' });
-  if (error) throw new Error(`Erro ao salvar tokens: ${error.message}`);
+    });
+  if (error) throw new Error(`Erro ao salvar conta YouTube: ${error.message}`);
+}
+
+export async function listAccounts(userId: string): Promise<YouTubeAccount[]> {
+  const { data, error } = await getSupabase()
+    .from('youtube_accounts')
+    .select('id, user_id, channel_name, channel_id, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function removeAccount(accountId: string, userId: string): Promise<void> {
+  const { error } = await getSupabase()
+    .from('youtube_accounts')
+    .delete()
+    .eq('id', accountId)
+    .eq('user_id', userId);
+  if (error) throw new Error(error.message);
 }
 
 export async function isConnected(userId: string): Promise<boolean> {
   const { data } = await getSupabase()
-    .from('youtube_tokens')
-    .select('user_id')
+    .from('youtube_accounts')
+    .select('id')
     .eq('user_id', userId)
-    .single();
+    .limit(1)
+    .maybeSingle();
   return !!data;
 }
 
-async function getAuthenticatedClient(userId: string) {
+async function getAuthenticatedClient(accountId: string) {
   const { data, error } = await getSupabase()
-    .from('youtube_tokens')
+    .from('youtube_accounts')
     .select('*')
-    .eq('user_id', userId)
+    .eq('id', accountId)
     .single();
 
   if (error || !data) {
-    throw new Error('YouTube não conectado. Faça a autenticação primeiro.');
+    throw new Error('Conta YouTube não encontrada. Configure a conta da pasta primeiro.');
   }
 
   const client = createOAuthClient();
@@ -67,13 +117,13 @@ async function getAuthenticatedClient(userId: string) {
   if (data.expiry_date && Date.now() > Number(data.expiry_date) - 5 * 60 * 1000) {
     const { credentials } = await client.refreshAccessToken();
     await getSupabase()
-      .from('youtube_tokens')
+      .from('youtube_accounts')
       .update({
         access_token: credentials.access_token!,
         expiry_date: credentials.expiry_date ?? null,
         updated_at: new Date().toISOString(),
       })
-      .eq('user_id', userId);
+      .eq('id', accountId);
     client.setCredentials(credentials);
   }
 
@@ -88,10 +138,26 @@ export async function uploadToYouTube(
   language = 'pt',
   channelTags: string[] = [],
   scheduledAt?: string,
+  accountId?: string,
   userId?: string,
 ): Promise<string> {
-  if (!userId) throw new Error('UserId é necessário para upload');
-  const auth = await getAuthenticatedClient(userId);
+  if (!accountId && !userId) throw new Error('accountId ou userId é necessário para upload');
+
+  let auth;
+  if (accountId) {
+    auth = await getAuthenticatedClient(accountId);
+  } else {
+    // fallback: usa qualquer conta do usuário (compatibilidade)
+    const { data } = await getSupabase()
+      .from('youtube_accounts')
+      .select('id')
+      .eq('user_id', userId!)
+      .limit(1)
+      .maybeSingle();
+    if (!data) throw new Error('Nenhuma conta YouTube conectada.');
+    auth = await getAuthenticatedClient(data.id);
+  }
+
   const youtube = google.youtube({ version: 'v3', auth });
 
   const videoRes = await fetch(videoUrl);
@@ -101,7 +167,6 @@ export async function uploadToYouTube(
 
   const projectTags = hashtags.map(t => t.replace(/^#/, ''));
   const cleanChannelTags = channelTags.map(t => t.replace(/^#/, ''));
-  // Tags finais: tags fixas do canal + tags do projeto + Shorts (sem duplicatas)
   const allTags = [...new Set([...cleanChannelTags, ...projectTags, 'Shorts'])];
   const fullDescription = `${description}\n\n${projectTags.map(t => `#${t}`).join(' ')}\n\n#Shorts`;
 

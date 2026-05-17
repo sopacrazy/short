@@ -48,13 +48,28 @@ Tipo de gancho obrigatório desta versão: ${hookType}${avoidBlock}
 
 TEMA: "${topic}" | Nicho: ${niche} | Duração: ${durationTarget}s | Tom: ${voiceTone} | Velocidade: ${narrationSpeed}
 
+═══ FILOSOFIA OBRIGATÓRIA — LEIA COM ATENÇÃO ═══
+
+O vídeo deve ENTREGAR A CURIOSIDADE COMPLETA dentro dos ${durationTarget} segundos.
+O espectador assiste ao vídeo e SAI SABENDO A RESPOSTA — não fica com um cliffhanger.
+Não use frases como "descubra mais inscrevendo-se" ANTES de revelar o fato.
+O CTA de inscrição aparece APENAS NA ÚLTIMA CENA, DEPOIS que tudo já foi explicado.
+
+Estrutura obrigatória das cenas:
+  CENA 1 — Gancho: frase de impacto que apresenta a curiosidade (tipo: ${hookType})
+  CENAS 2 a N-1 — Desenvolvimento: explica o fato completo, com detalhes reais e concretos. A resposta deve estar aqui.
+  ÚLTIMA CENA — CTA breve: "Curta e siga para mais curiosidades como essa." (3-5 segundos)
+
 ═══ PROCESSO OBRIGATÓRIO — siga esta ordem ═══
 
-PASSO 1 — Escreva o roteiro completo como narração contínua (hook + desenvolvimento + CTA).
+PASSO 1 — Escreva o roteiro completo como narração contínua:
+  • Gancho (5-8s): apresenta a curiosidade de forma impactante
+  • Desenvolvimento (25-35s): explica o fato inteiro — quem, o quê, quando, como, por quê. Inclui o detalhe mais surpreendente. A revelação acontece AQUI.
+  • CTA (3-5s): convida a seguir/curtir. Nada de "descubra depois" — o conteúdo já foi entregue.
 PASSO 2 — Divida essa narração em 4 a 6 segmentos sequenciais. Cada segmento = uma cena.
   • Os segmentos juntos devem formar o roteiro completo sem cortes ou repetições.
-  • Cada segmento deve ter entre 2 e 4 frases (o suficiente para ~8–12s de narração).
-PASSO 3 — Para cada segmento, crie um image_prompt em inglês que ilustre EXATAMENTE o fato/momento sendo narrado naquele trecho. A imagem deve ser uma FOTOGRAFIA REAL do conteúdo narrado, não uma ilustração genérica.
+  • Cada cena de desenvolvimento (não gancho, não CTA) deve ter 1 a 3 frases diretas.
+PASSO 3 — Para cada segmento, crie um image_prompt em inglês que ilustre EXATAMENTE o fato/momento sendo narrado naquele trecho.
 
 ═══ REGRAS DO IMAGE_PROMPT ═══
 • Sempre em inglês
@@ -64,31 +79,31 @@ PASSO 3 — Para cada segmento, crie um image_prompt em inglês que ilustre EXAT
 • A imagem deve mostrar EXATAMENTE o sujeito narrado — se fala de polvo gigante, mostre polvo; se fala de submarino, mostre submarino; se fala de cientista, mostre cientista no ato
 • NUNCA gere "close-up de olhos", "pessoa olhando para a câmera" ou metáforas abstratas — sempre o objeto/animal/lugar/evento real
 • Cena 1 (gancho): close dramático, composição impactante — a imagem mais forte de todas
-• Última cena (CTA — "Inscreva-se", "Curta", "Siga" etc.): NÃO ilustre a frase do CTA; mostre o TEMA CENTRAL do vídeo em seu momento mais dramático e impactante
+• Última cena (CTA): NÃO ilustre a frase do CTA; mostre o TEMA CENTRAL do vídeo em seu momento mais dramático
 • Termine com: "photorealistic, hyperdetailed, no AI artifacts, no illustration, no CGI, vertical 9:16 portrait"
 
-Responda EXCLUSIVAMENTE com JSON puro (sem markdown):
-• Termine com: "photorealistic, hyperdetailed, no AI artifacts, no illustration, no CGI, vertical 9:16 portrait"`;
+Responda EXCLUSIVAMENTE com JSON puro (sem markdown).`;
     const response = await client.chat.completions.create({
         model: MODEL,
         messages: [
             {
                 role: 'system',
-                content: `Você é um roteirista especializado em vídeos curtos e virais (Shorts/TikTok).
-Sua tarefa é criar um roteiro baseado em um tópico fornecido pelo usuário.
+                content: `Você é um roteirista especializado em vídeos curtos e virais (Shorts/TikTok/Reels).
+Sua missão é criar roteiros que ENTREGAM a curiosidade completa dentro do vídeo — sem cliffhangers, sem "descubra inscrevendo-se" antes da revelação.
 
 REGRAS CRÍTICAS PARA O METADATA:
-- TÍTULO: Deve ser um GATILHO DE CURIOSIDADE absoluto. Use frases incompletas, perguntas intrigantes ou fatos inacreditáveis. Exemplos: "O segredo que...", "Você não vai acreditar no...", "Por que ninguém fala sobre...".
-- DESCRIÇÃO: Deve ter no MÁXIMO 2 LINHAS. Seja direto e use um "call to action" simples.
-- HASHTAGS: Gere 5-8 hashtags virais relacionadas.
+- TÍTULO: Gatilho de curiosidade que promete uma resposta que o vídeo DE FATO entrega. Ex: "O sobrevivente do Titanic que ninguém conhece", "Por que os golfinhos fazem isso?", "O truque que salvou 200 vidas".
+- DESCRIÇÃO: Máximo 2 linhas. Reforce o fato mais surpreendente que o vídeo revela.
+- HASHTAGS: 5 a 8 hashtags virais relacionadas.
 
 REGRAS PARA O ROTEIRO:
-- O roteiro deve ter entre 45 e 60 segundos de duração total.
-- Divida o roteiro em cenas (objetos no JSON).
+- Duração total: 40 a 50 segundos.
+- O conteúdo principal (a resposta à curiosidade) deve estar nas cenas intermediárias.
+- A última cena é um CTA breve (3-5s) de "Curta e siga" — sem prometer revelar algo depois.
 - Cada cena deve ter:
-  1. "description": O texto curto e impactante que será falado (narração).
-  2. "image_prompt": Um prompt detalhado e visual para gerar uma imagem cinematográfica realista daquela cena.
-  3. "duration_seconds": A duração estimada daquela cena (2 a 6 segundos).
+  1. "description": texto exato da narração daquela cena (direto, sem rodeios).
+  2. "image_prompt": prompt visual detalhado em inglês para gerar imagem fotorrealista.
+  3. "duration_seconds": duração estimada em segundos (3 a 10s por cena).
 
 O retorno DEVE ser EXCLUSIVAMENTE um JSON válido no seguinte formato:
 {
@@ -106,7 +121,7 @@ O retorno DEVE ser EXCLUSIVAMENTE um JSON válido no seguinte formato:
     "hashtags": ["tag1", "tag2"]
   },
   "scenes": [
-    { "scene_number": 1, "description": "...", "image_prompt": "...", "duration_seconds": 4 },
+    { "scene_number": 1, "description": "...", "image_prompt": "...", "duration_seconds": 5 },
     ...
   ]
 }`
@@ -253,10 +268,102 @@ Responda apenas com JSON: { "suggestions": ["tema 1", "tema 2", ...] }`,
     const raw = JSON.parse(response.choices[0].message.content);
     return raw.suggestions;
 }
-export async function generateViralPhrase(query, apiKey) {
+export async function generateViralPhrase(query, apiKey, category) {
     if (!apiKey)
         throw new Error('Configuração ausente: OpenAI API Key não encontrada para este usuário.');
     const client = new OpenAI({ apiKey });
+    if (category === 'taescrito') {
+        const response = await client.chat.completions.create({
+            model: MODEL,
+            messages: [
+                {
+                    role: 'system',
+                    content: `Você é o criador do @taescrito.ai — conta de Instagram brasileira que viraliza com frases que todo mundo pensa mas ninguém fala. Tom: vizinho de bairro que fala a verdade na cara dura.
+
+IDENTIDADE:
+Humor pesado, regional, cultural. Brasileiro médio: paga boleto, toma cerveja, apanha do ex, segura o trampo, apoia o time na derrota. Linguagem de rua, não de livro. Quanto mais específico e cotidiano, melhor.
+
+REFERÊNCIAS CULTURAIS BRASILEIRAS PARA USAR:
+- Cotidiano: PIX, iFood, Uber, 99, Nubank, conta de luz, boleto, vaquinha, pagamento mínimo do cartão
+- Relacionamento BR: "deixa no visto", "vou indo", "a gente se fala", sumir, "to ocupado", ghosting na versão BR
+- Regional: nordestino que veio pra São Paulo, fila do INSS, fila do banco Bradesco, churrasco de domingo, festa junina, carnaval que não vai, São João, vaquejada, funk, sertanejo
+- Cultura pop BR: BBB, Faustão, Ratinho, Domingão, novela das 9, Palmeiras, Flamengo, "é nóis", "misericórdia", "aí sim"
+- Trabalho BR: CLT, PJ, MEI, 13º que some, férias que nunca chegam, reunião que podia ser e-mail, WhatsApp do chefe fora do horário
+- Religião/crenças: "Deus vai prover", vela para santo, promessa, culpa católica, pastores do Instagram
+- Família BR: pai que não aparece, mãe que alimenta todo mundo, tio que fala de política no almoço, vó que força comida
+
+TAMANHO DA FRASE — REGRA MAIS IMPORTANTE:
+Máximo 2 frases curtas. A força está na brevidade.
+Ideal: 1 frase completa de impacto OU 2 frases curtas onde a segunda é a virada.
+NUNCA mais de 25 palavras no total.
+
+REGRA DE COERÊNCIA ABSOLUTA:
+Cada frase precisa fazer sentido completo por si só. Leia em voz alta — se não ficou claro o humor ou a situação, refaça. A piada precisa se entender sem contexto adicional.
+
+ESTRUTURA (escolha a mais impactante para o tema):
+1. PANCADA ÚNICA: Uma frase completa que resume tudo com humor. Ex: "Tá foda, mas estou de pé."
+2. SETUP + VIRADA: "[Situação cotidiana completa]. [Conclusão inesperada completa]." — ambas as frases precisam ser completas e coerentes entre si.
+3. COMPARAÇÃO COMPLETA: "[X] é igual [Y brasileiro]: [detalhe específico que fecha a comparação]."
+4. CONFISSÃO DIRETA: Uma admissão crua que qualquer brasileiro entende de primeira leitura.
+5. IRONIA COMPLETA: Observação sobre costume brasileiro com setup e punch claros.
+
+EXEMPLOS DO NÍVEL EXIGIDO — NOTE QUE TODAS FAZEM SENTIDO COMPLETO:
+"Tá foda, mas estou de pé."
+"Paguei só o mínimo do cartão. Tô me financiando com juros."
+"Meu ex sumiu igual internet da Oi: sem aviso e com cobrança no final."
+"WhatsApp do chefe às 23h num domingo. Isso deveria ser crime."
+"Mandei 'já tô chegando' do sofá. Sou brasileiro."
+"Torci pra reunião ser cancelada. Isso é maturidade profissional."
+"Todo churrasco tem aquele que não trouxe nada mas foi o primeiro no prato."
+"A tia perguntou quando caso. Ainda tô pagando o cartão do último namoro."
+"Fiz promessa pro santo e esqueci. No amor faço igual."
+"No nordeste não termina relacionamento, dá um tempo. Que dura três anos."
+
+PROIBIDO:
+- Qualquer coisa que soe motivacional, filosófica ou de livro de autoajuda
+- Palavras como: maturidade, resiliência, jornada, processo, evolução (no sentido motivacional)
+- Frases que poderiam estar num calendário de escritório
+- Mais de 2 frases ou mais de 20 palavras
+- Emojis no campo "frase"
+- Linguagem formal ou culta demais
+- INVENTAR palavras que não existem no português brasileiro — use apenas palavras reais e corretas
+- Gírias que não existem (ex: "gine", "mife", palavras inventadas) — se usar gíria, use apenas gírias reais conhecidas
+
+OBRIGATÓRIO:
+- Português brasileiro coloquial, com gíria se couber
+- Referência a algo que TODO brasileiro reconhece instantaneamente
+- A pessoa precisa rir e mandar pro grupo do WhatsApp na mesma hora
+
+Responda EXCLUSIVAMENTE com JSON puro:
+{
+  "categoria": "taescrito.ai",
+  "frase": "...",
+  "caption": "legenda completa do post com quebras de linha, CTA e 3 pontos antes das hashtags",
+  "hashtags": ["taescritoai", "frasesbrasileiras", ...mais 6 relevantes ao tema],
+  "tema_visual": "descrição curta da cena",
+  "prompt": "descrição visual para IA de imagem"
+}
+
+REGRAS DO CAPTION:
+- Começa com a frase em destaque
+- Linha em branco
+- 1 pergunta de engajamento curta e direta (ex: "Quantas vezes você viveu isso?")
+- Linha em branco
+- CTA forte: "Salva e manda pra quem precisa ler." ou "Marca quem vai se identificar." ou "Comenta com 1 palavra."
+- Linha com apenas "."
+- Linha com apenas "."
+- Linha com apenas "."
+(as hashtags vão separadas no campo hashtags)
+
+REGRA CRÍTICA: "prompt" é APENAS visual para IA de imagem. Sem texto. Cenas brasileiras urbanas/noturnas, bar, rua molhada, luz de neon, cinematográfico.`,
+                },
+                { role: 'user', content: `Tema: ${query}. Gere uma frase CURTA (máx 2 linhas, máx 20 palavras) no estilo @taescrito.ai. Simples, direta e impactante como "Tá foda, mas estou de pé." NÃO seja genérico. Seja específico e cortante.` },
+            ],
+            temperature: 0.95,
+            response_format: { type: 'json_object' },
+        });
+        return JSON.parse(response.choices[0].message.content);
+    }
     const response = await client.chat.completions.create({
         model: MODEL,
         messages: [
@@ -303,4 +410,24 @@ REGRAS CRÍTICAS DE CAMPOS:
         response_format: { type: 'json_object' },
     });
     return JSON.parse(response.choices[0].message.content);
+}
+export async function translateTexts(texts, targetLang = 'Português (Brasil)', apiKey) {
+    const key = apiKey || process.env.OPENAI_API_KEY;
+    if (!key)
+        throw new Error('OpenAI API Key não configurada');
+    const client = new OpenAI({ apiKey: key });
+    const numbered = texts.map((t, i) => `${i + 1}. ${t}`).join('\n');
+    const response = await client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+            {
+                role: 'system',
+                content: `Você é um tradutor. Traduza cada linha numerada para ${targetLang}. Retorne SOMENTE as linhas numeradas traduzidas, no mesmo formato, sem explicações.`,
+            },
+            { role: 'user', content: numbered },
+        ],
+        temperature: 0.3,
+    });
+    const lines = (response.choices[0].message.content ?? '').split('\n').filter(l => l.trim());
+    return lines.map(l => l.replace(/^\d+\.\s*/, '').trim());
 }

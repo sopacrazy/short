@@ -278,20 +278,42 @@ export async function renderVideo(
     await unlink(outputPath).catch(() => {});
   }
 
-  console.log('[Render] Upload para Supabase Storage...');
-
-  // 5. Upload para Supabase Storage
+  // 5. Upload para Supabase Storage com retry
   const videoBuffer = await readFile(faststartPath);
+  const fileSizeMB = (videoBuffer.length / 1024 / 1024).toFixed(1);
   const storagePath = `videos/${projectId}.mp4`;
 
-  const { error: uploadError } = await supabase.storage
-    .from('videos')
-    .upload(storagePath, videoBuffer, {
-      contentType: 'video/mp4',
-      upsert: true,
-    });
+  console.log(`[Render] Upload para Supabase Storage... (${fileSizeMB} MB)`);
 
-  if (uploadError) throw new Error(`Upload falhou: ${uploadError.message}`);
+  const MAX_UPLOAD_ATTEMPTS = 3;
+  let uploadError: Error | null = null;
+
+  for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt++) {
+    try {
+      const { error } = await supabase.storage
+        .from('videos')
+        .upload(storagePath, videoBuffer, {
+          contentType: 'video/mp4',
+          upsert: true,
+        });
+
+      if (!error) { uploadError = null; break; }
+
+      uploadError = new Error(error.message);
+      console.warn(`[Render] Upload tentativa ${attempt}/${MAX_UPLOAD_ATTEMPTS} falhou: ${error.message}`);
+    } catch (e: any) {
+      uploadError = new Error(e?.message ?? 'fetch failed');
+      console.warn(`[Render] Upload tentativa ${attempt}/${MAX_UPLOAD_ATTEMPTS} erro de rede: ${uploadError.message}`);
+    }
+
+    if (attempt < MAX_UPLOAD_ATTEMPTS) {
+      const delay = attempt * 5000; // 5s, 10s
+      console.log(`[Render] Aguardando ${delay / 1000}s antes de nova tentativa...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+
+  if (uploadError) throw new Error(`Upload falhou após ${MAX_UPLOAD_ATTEMPTS} tentativas: ${uploadError.message}`);
 
   const { data: urlData } = supabase.storage.from('videos').getPublicUrl(storagePath);
   const videoUrl = urlData.publicUrl;

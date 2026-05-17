@@ -10,6 +10,7 @@ export enum AppStep {
   VIRAL_PHRASES = 'VIRAL_PHRASES',
   CURIOSITY_POST = 'CURIOSITY_POST',
   CURIOSITY_GALLERY = 'CURIOSITY_GALLERY',
+  SCHEDULES = 'SCHEDULES',
 }
 
 export interface ProjectContext {

@@ -4,17 +4,18 @@ import {
   Plus, Folder, Trash2, Pencil, X, Loader2,
   Play, Clapperboard, Youtube, Instagram, Settings2,
   Clock, Hash, Palette, FolderPlus,
-  Share2, ChevronRight, Eye, Mic2, Languages, Zap, CheckCircle
+  Share2, ChevronRight, Eye, Mic2, Languages, Zap, CheckCircle, UserCircle
 } from 'lucide-react';
-import { api, type ApiProject, type ApiFolder, type Voice } from '@/src/lib/api';
+import { api, type ApiProject, type ApiFolder, type Voice, type YouTubeAccount } from '@/src/lib/api';
 
 interface ProjectsViewProps {
   onStartProject: (defaults?: any) => void;
   onEditProject: (project: ApiProject) => void;
   onExportProject: (project: ApiProject) => void;
+  youtubeAccounts?: YouTubeAccount[];
 }
 
-export default function ProjectsView({ onStartProject, onEditProject, onExportProject }: ProjectsViewProps) {
+export default function ProjectsView({ onStartProject, onEditProject, onExportProject, youtubeAccounts = [] }: ProjectsViewProps) {
   const [folders, setFolders] = useState<ApiFolder[]>([]);
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
@@ -24,9 +25,10 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [showFolderSettings, setShowFolderSettings] = useState<ApiFolder | null>(null);
   const [moveProject, setMoveProject] = useState<ApiProject | null>(null);
-  const [editFolder, setEditFolder] = useState({ 
+  const [editFolder, setEditFolder] = useState({
     name: '', emoji: '', color: '', voiceId: '', lang: '', tags: '',
-    autoPublishYoutube: false, autoPublishInstagram: false
+    autoPublishYoutube: false, autoPublishInstagram: false,
+    youtubeAccountId: '' as string
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [deleteProject, setDeleteProject] = useState<ApiProject | null>(null);
@@ -36,10 +38,17 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
   const loadAll = async () => {
     setIsLoading(true);
     try {
-      const [f, p, v] = await Promise.all([api.folders.list(), api.projects.list(), api.narration.voices()]);
-      setFolders(f); setProjects(p); setVoices(v);
+      const [f, p] = await Promise.all([api.folders.list(), api.projects.list()]);
+      setFolders(f); setProjects(p);
     } catch (err) { console.error(err); }
     finally { setIsLoading(false); }
+  };
+
+  // Voices carregadas sob demanda — só quando o modal de configuração abre
+  const loadVoicesIfNeeded = async () => {
+    if (voices.length === 0) {
+      try { setVoices(await api.narration.voices()); } catch { /* silencioso */ }
+    }
   };
 
   const selectedFolder = folders.find(f => f.id === selectedFolderId);
@@ -67,7 +76,8 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
         default_language: editFolder.lang,
         default_youtube_tags: tagsArray,
         auto_publish_youtube: editFolder.autoPublishYoutube,
-        auto_publish_instagram: editFolder.autoPublishInstagram
+        auto_publish_instagram: editFolder.autoPublishInstagram,
+        youtube_account_id: editFolder.youtubeAccountId || null,
       });
       setFolders(prev => prev.map(f => f.id === updated.id ? updated : f));
       setShowFolderSettings(null);
@@ -94,23 +104,31 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
           <button onClick={() => setShowCreateFolder(true)} className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-gray-400 hover:text-white transition-all">
             <Folder className="w-4 h-4" />
           </button>
-          <button 
-            onClick={() => {
-              const defaults = selectedFolder ? {
-                folderId: selectedFolder.id,
-                folderName: selectedFolder.name,
-                folderEmoji: selectedFolder.emoji,
-                defaultVoiceId: selectedFolder.default_voice_id ?? undefined,
-                defaultLanguage: selectedFolder.default_language ?? 'pt',
-                defaultTags: selectedFolder.default_youtube_tags ?? []
-              } : undefined;
-              onStartProject(defaults);
-            }} 
-            className="btn-primary py-2.5 px-6 rounded-xl text-sm font-bold shadow-lg shadow-ai-primary/20"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Novo Short</span>
-          </button>
+          <div className="relative group/btn">
+            <button
+              onClick={() => {
+                if (!selectedFolder) return;
+                onStartProject({
+                  folderId: selectedFolder.id,
+                  folderName: selectedFolder.name,
+                  folderEmoji: selectedFolder.emoji,
+                  defaultVoiceId: selectedFolder.default_voice_id ?? undefined,
+                  defaultLanguage: selectedFolder.default_language ?? 'pt',
+                  defaultTags: selectedFolder.default_youtube_tags ?? []
+                });
+              }}
+              disabled={!selectedFolder}
+              className="btn-primary py-2.5 px-6 rounded-xl text-sm font-bold shadow-lg shadow-ai-primary/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Short</span>
+            </button>
+            {!selectedFolder && (
+              <div className="absolute right-0 top-full mt-2 px-3 py-2 bg-[#1a1a1b] border border-white/10 rounded-xl text-[11px] text-gray-400 whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none z-10">
+                Selecione uma pasta para criar um Short
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -147,10 +165,12 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
                 lang: selectedFolder.default_language || 'pt',
                 tags: selectedFolder.default_youtube_tags?.join(', ') || '',
                 autoPublishYoutube: selectedFolder.auto_publish_youtube ?? false,
-                autoPublishInstagram: selectedFolder.auto_publish_instagram ?? false
+                autoPublishInstagram: selectedFolder.auto_publish_instagram ?? false,
+                youtubeAccountId: selectedFolder.youtube_account_id || '',
               });
               setShowFolderSettings(selectedFolder);
-            }} 
+              loadVoicesIfNeeded();
+            }}
             className="ml-2 p-2.5 rounded-xl bg-white/5 text-ai-primary hover:bg-ai-primary hover:text-white transition-all"
           >
             <Settings2 className="w-4 h-4" />
@@ -304,6 +324,30 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
                           {editFolder.autoPublishYoutube && <CheckCircle className="w-4 h-4 text-white" />}
                         </div>
                       </label>
+
+                    {/* Seletor de conta YouTube para esta pasta */}
+                    {youtubeAccounts.length > 0 && (
+                      <div className="space-y-2 pt-1">
+                        <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-2">
+                          <UserCircle className="w-3 h-3" /> Conta YouTube desta Pasta
+                        </label>
+                        <div className="relative group">
+                          <select
+                            value={editFolder.youtubeAccountId}
+                            onChange={e => setEditFolder({ ...editFolder, youtubeAccountId: e.target.value })}
+                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-3 text-xs font-bold text-white appearance-none cursor-pointer focus:border-red-500/50 transition-all outline-none pr-8"
+                          >
+                            <option value="">Nenhuma (não publicar no YouTube)</option>
+                            {youtubeAccounts.map(acc => (
+                              <option key={acc.id} value={acc.id}>
+                                {acc.channel_name ?? 'Canal sem nome'}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronRight className="w-3.5 h-3.5 text-gray-500 absolute right-3 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" />
+                        </div>
+                      </div>
+                    )}
 
                       <label className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer group ${editFolder.autoPublishInstagram ? 'bg-pink-500/5 border-pink-500/20' : 'bg-black/20 border-white/5 hover:border-white/10'}`}>
                         <div className="flex items-center gap-4">

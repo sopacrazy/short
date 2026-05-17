@@ -1,179 +1,217 @@
 import fetch from 'node-fetch';
+import { getSupabase } from './supabase.service.js';
 
-export async function uploadReel(videoUrl: string, caption: string) {
-  const ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN?.replace(/\s/g, '');
-  const USER_ID = process.env.INSTAGRAM_USER_ID?.replace(/\s/g, '');
-  const VERSION = 'v22.0';
+const IG_VERSION = 'v22.0';
 
-  if (!ACCESS_TOKEN || !USER_ID) {
-    throw new Error('Configuração do Instagram ausente (Token ou User ID)');
-  }
+// ─── OAuth (Instagram Business Login) ───────────────────────────────────────
 
-  console.log(`[Instagram] Iniciando upload de Reel: ${videoUrl}`);
-  console.log(`[Instagram] DEBUG: Token Length: ${ACCESS_TOKEN.length}`);
-  console.log(`[Instagram] DEBUG: Token Stringified: ${JSON.stringify(ACCESS_TOKEN)}`);
+export function getAuthUrl(userId: string): string {
+  const appId = process.env.INSTAGRAM_APP_ID;
+  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
+  if (!appId || !redirectUri) throw new Error('INSTAGRAM_APP_ID ou INSTAGRAM_REDIRECT_URI não configurados');
 
-  // Passo 1: Criar o Container de Mídia
-  const containerUrl = `https://graph.instagram.com/${VERSION}/${USER_ID}/media`;
-  const containerRes = await fetch(containerUrl, {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ACCESS_TOKEN}`
-    },
-    body: JSON.stringify({
-      media_type: 'REELS',
-      video_url: videoUrl,
-      caption: caption
-    })
+  const params = new URLSearchParams({
+    client_id: appId,
+    redirect_uri: redirectUri,
+    scope: 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_comments,instagram_business_manage_messages',
+    response_type: 'code',
+    state: userId,
+    force_reauth: 'true',
+    enable_fb_login: '0',
   });
-
-  const containerData = (await containerRes.json()) as any;
-
-  if (!containerRes.ok || !containerData.id) {
-    console.error('[Instagram] Erro ao criar container:', containerData);
-    throw new Error(containerData.error?.message || 'Erro ao criar container no Instagram');
-  }
-
-  const containerId = containerData.id;
-  console.log(`[Instagram] Container criado: ${containerId}. Aguardando processamento...`);
-
-  // Passo 2: Polling para verificar se o vídeo está pronto (FINISHED)
-  let status = 'IN_PROGRESS';
-  let attempts = 0;
-  const maxAttempts = 30; 
-
-  while (status !== 'FINISHED' && attempts < maxAttempts) {
-    attempts++;
-    await new Promise(resolve => setTimeout(resolve, 10000));
-
-    const statusUrl = `https://graph.instagram.com/${VERSION}/${containerId}?fields=status_code,status,error_message`;
-    const statusRes = await fetch(statusUrl, {
-      headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` }
-    });
-    const statusData = (await statusRes.json()) as any;
-
-    status = statusData.status_code;
-    console.log(`[Instagram] Status do container ${containerId}: ${status} (Tentativa ${attempts})`);
-
-    if (status === 'ERROR') {
-      console.error('[Instagram] Erro detalhado no processamento:', statusData);
-      throw new Error(statusData.error_message || 'O Instagram não conseguiu processar o vídeo. Verifique o formato/duração.');
-    }
-  }
-
-  if (status !== 'FINISHED') {
-    throw new Error('Tempo esgotado aguardando o processamento do Instagram.');
-  }
-
-  // Passo 3: Publicar o Container
-  console.log(`[Instagram] Publicando container: ${containerId}`);
-  const publishUrl = `https://graph.instagram.com/${VERSION}/${USER_ID}/media_publish`;
-  const publishRes = await fetch(publishUrl, {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ACCESS_TOKEN}`
-    },
-    body: JSON.stringify({
-      creation_id: containerId
-    })
-  });
-
-  const publishData = (await publishRes.json()) as any;
-
-  if (!publishRes.ok || !publishData.id) {
-    console.error('[Instagram] Erro ao publicar:', publishData);
-    throw new Error(publishData.error?.message || 'Erro ao publicar Reel');
-  }
-
-  console.log(`[Instagram] Reel publicado com sucesso! ID: ${publishData.id}`);
-  
-  return {
-    id: publishData.id,
-    url: `https://www.instagram.com/reels/${publishData.id}/`
-  };
+  return `https://api.instagram.com/oauth/authorize?${params}`;
 }
 
-export async function uploadPhoto(imageUrl: string, caption: string) {
-  const ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN?.replace(/\s/g, '');
-  const USER_ID = process.env.INSTAGRAM_USER_ID?.replace(/\s/g, '');
-  const VERSION = 'v22.0';
+export async function exchangeCodeAndStore(code: string, userId: string): Promise<void> {
+  const appId = process.env.INSTAGRAM_APP_ID;
+  const appSecret = process.env.INSTAGRAM_APP_SECRET;
+  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
+  if (!appId || !appSecret || !redirectUri) throw new Error('Variáveis INSTAGRAM_* não configuradas');
 
-  if (!ACCESS_TOKEN || !USER_ID) {
-    throw new Error('Configuração do Instagram ausente (Token ou User ID)');
-  }
-
-  console.log(`[Instagram] Postando imagem: ${imageUrl}`);
-
-  // Passo 1: Criar container de imagem
-  const containerRes = await fetch(`https://graph.instagram.com/${VERSION}/${USER_ID}/media`, {
+  // 1. Troca código por token de curta duração
+  const shortRes = await fetch('https://api.instagram.com/oauth/access_token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ACCESS_TOKEN}` },
-    body: JSON.stringify({ image_url: imageUrl, caption }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: appId,
+      client_secret: appSecret,
+      grant_type: 'authorization_code',
+      redirect_uri: redirectUri,
+      code,
+    }),
   });
+  const shortData = (await shortRes.json()) as any;
+  if (!shortData.access_token) throw new Error(shortData.error_message || shortData.error?.message || 'Falha ao obter token do Instagram');
 
-  const containerData = (await containerRes.json()) as any;
-  if (!containerRes.ok || !containerData.id) {
-    console.error('[Instagram] Erro ao criar container de imagem:', containerData);
-    throw new Error(containerData.error?.message || 'Erro ao criar container no Instagram');
+  const shortToken: string = shortData.access_token;
+  const instagramUserId: string = String(shortData.user_id);
+
+  // 2. Troca por token de longa duração (60 dias)
+  const longRes = await fetch(
+    `https://graph.instagram.com/access_token?` +
+    new URLSearchParams({
+      grant_type: 'ig_exchange_token',
+      client_secret: appSecret,
+      access_token: shortToken,
+    })
+  );
+  const longData = (await longRes.json()) as any;
+  if (!longData.access_token) throw new Error(longData.error?.message || 'Falha ao obter token de longa duração');
+
+  const longToken: string = longData.access_token;
+  const expiresIn: number = longData.expires_in ?? 60 * 24 * 3600;
+  const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+  // 3. Busca username e ID real via /me (evita erro de precisão de inteiro no user_id do OAuth)
+  const profileRes = await fetch(
+    `https://graph.instagram.com/${IG_VERSION}/me?fields=id,username,account_type&access_token=${longToken}`
+  );
+  const profileData = (await profileRes.json()) as any;
+  const instagramUsername: string = profileData.username ?? '';
+  const correctUserId: string = profileData.id ?? instagramUserId;
+
+  // 4. Salva no Supabase
+  const { error } = await getSupabase()
+    .from('instagram_tokens')
+    .upsert({
+      user_id: userId,
+      access_token: longToken,
+      instagram_user_id: correctUserId,
+      username: instagramUsername,
+      expires_at: expiresAt,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' });
+
+  if (error) throw new Error(`Erro ao salvar tokens: ${error.message}`);
+}
+
+export async function getInstagramStatus(userId: string): Promise<{ connected: boolean; username?: string }> {
+  const { data } = await getSupabase()
+    .from('instagram_tokens')
+    .select('username, expires_at')
+    .eq('user_id', userId)
+    .single();
+  if (!data) return { connected: false };
+  return { connected: true, username: data.username ?? undefined };
+}
+
+export async function disconnect(userId: string): Promise<void> {
+  await getSupabase().from('instagram_tokens').delete().eq('user_id', userId);
+}
+
+export async function scheduleReel(userId: string, videoUrl: string, caption: string, scheduledAt: string): Promise<void> {
+  const { error } = await getSupabase()
+    .from('scheduled_reels')
+    .insert({ user_id: userId, video_url: videoUrl, caption, scheduled_at: scheduledAt, status: 'pending' });
+  if (error) throw new Error(`Erro ao agendar Reel: ${error.message}`);
+}
+
+// ─── Helper interno ───────────────────────────────────────────────────────────
+
+async function getTokenForUser(userId: string): Promise<{ token: string; igUserId: string }> {
+  const { data, error } = await getSupabase()
+    .from('instagram_tokens')
+    .select('access_token, instagram_user_id, expires_at')
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !data) throw new Error('Instagram não conectado. Faça a autenticação primeiro.');
+
+  if (data.expires_at) {
+    const daysLeft = (new Date(data.expires_at).getTime() - Date.now()) / (1000 * 3600 * 24);
+    if (daysLeft < 7) console.warn(`[Instagram] Token expira em ${daysLeft.toFixed(0)} dias.`);
   }
+
+  return { token: data.access_token, igUserId: data.instagram_user_id };
+}
+
+// ─── Publicação ──────────────────────────────────────────────────────────────
+
+export async function uploadReel(videoUrl: string, caption: string, userId: string): Promise<{ id: string; url: string }> {
+  const { token, igUserId } = await getTokenForUser(userId);
+  console.log(`[Instagram] Iniciando upload de Reel. igUserId=${igUserId} videoUrl=${videoUrl}`);
+
+  // Debug: verifica conta e permissões do token
+  const meRes = await fetch(`https://graph.instagram.com/${IG_VERSION}/me?fields=id,username,account_type&access_token=${token}`);
+  const meData = (await meRes.json()) as any;
+  console.log(`[Instagram] Token info:`, JSON.stringify(meData));
+
+  const containerRes = await fetch(`https://graph.instagram.com/${IG_VERSION}/${igUserId}/media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ media_type: 'REELS', video_url: videoUrl, caption }),
+  });
+  const containerData = (await containerRes.json()) as any;
+  console.log(`[Instagram] Container response (${containerRes.status}):`, JSON.stringify(containerData));
+  if (!containerRes.ok || !containerData.id) throw new Error(containerData.error?.message || 'Erro ao criar container no Instagram');
 
   const containerId = containerData.id;
-  console.log(`[Instagram] Container de imagem criado: ${containerId}. Aguardando processamento...`);
+  console.log(`[Instagram] Container criado: ${containerId}. Aguardando...`);
 
-  // Passo 2: Polling até FINISHED (imagens processam em poucos segundos)
   let status = 'IN_PROGRESS';
   let attempts = 0;
-  const maxAttempts = 15;
-
-  while (status !== 'FINISHED' && attempts < maxAttempts) {
+  while (status !== 'FINISHED' && attempts < 30) {
     attempts++;
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
+    await new Promise(r => setTimeout(r, 10000));
     const statusRes = await fetch(
-      `https://graph.instagram.com/${VERSION}/${containerId}?fields=status_code,status,error_message`,
-      { headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` } }
+      `https://graph.instagram.com/${IG_VERSION}/${containerId}?fields=status_code,status,error_message`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
     );
     const statusData = (await statusRes.json()) as any;
     status = statusData.status_code;
-    console.log(`[Instagram] Status imagem ${containerId}: ${status} (tentativa ${attempts})`);
-
-    if (status === 'ERROR') {
-      throw new Error(statusData.error_message || 'Erro ao processar imagem no Instagram');
-    }
+    console.log(`[Instagram] Status: ${status} (tentativa ${attempts})`);
+    if (status === 'ERROR') throw new Error(statusData.error_message || 'Erro ao processar vídeo no Instagram');
   }
+  if (status !== 'FINISHED') throw new Error('Tempo esgotado aguardando processamento do Instagram');
 
-  if (status !== 'FINISHED') {
-    throw new Error('Tempo esgotado aguardando processamento da imagem pelo Instagram');
-  }
-
-  // Passo 3: Publicar
-  const publishRes = await fetch(`https://graph.instagram.com/${VERSION}/${USER_ID}/media_publish`, {
+  const publishRes = await fetch(`https://graph.instagram.com/${IG_VERSION}/${igUserId}/media_publish`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ACCESS_TOKEN}` },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify({ creation_id: containerId }),
   });
-
   const publishData = (await publishRes.json()) as any;
-  if (!publishRes.ok || !publishData.id) {
-    console.error('[Instagram] Erro ao publicar imagem:', publishData);
-    throw new Error(publishData.error?.message || 'Erro ao publicar imagem no Instagram');
-  }
+  if (!publishRes.ok || !publishData.id) throw new Error(publishData.error?.message || 'Erro ao publicar Reel');
 
-  console.log(`[Instagram] Imagem publicada! ID: ${publishData.id}`);
-  return {
-    id: publishData.id,
-    url: `https://www.instagram.com/p/${publishData.id}/`,
-  };
+  console.log(`[Instagram] Reel publicado! ID: ${publishData.id}`);
+  return { id: publishData.id, url: `https://www.instagram.com/reels/${publishData.id}/` };
 }
 
-export async function getInstagramStatus() {
-  const ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN?.replace(/\s/g, '');
-  const USER_ID = process.env.INSTAGRAM_USER_ID?.replace(/\s/g, '');
-  
-  return {
-    connected: !!ACCESS_TOKEN && !!USER_ID,
-    username: 'el_sabiondco'
-  };
+export async function uploadPhoto(imageUrl: string, caption: string, userId: string): Promise<{ id: string; url: string }> {
+  const { token, igUserId } = await getTokenForUser(userId);
+  console.log(`[Instagram] Postando imagem: ${imageUrl}`);
+
+  const containerRes = await fetch(`https://graph.instagram.com/${IG_VERSION}/${igUserId}/media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ image_url: imageUrl, caption }),
+  });
+  const containerData = (await containerRes.json()) as any;
+  if (!containerRes.ok || !containerData.id) throw new Error(containerData.error?.message || 'Erro ao criar container');
+
+  const containerId = containerData.id;
+  let status = 'IN_PROGRESS';
+  let attempts = 0;
+  while (status !== 'FINISHED' && attempts < 15) {
+    attempts++;
+    await new Promise(r => setTimeout(r, 3000));
+    const statusRes = await fetch(
+      `https://graph.instagram.com/${IG_VERSION}/${containerId}?fields=status_code,status,error_message`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+    const statusData = (await statusRes.json()) as any;
+    status = statusData.status_code;
+    if (status === 'ERROR') throw new Error(statusData.error_message || 'Erro ao processar imagem no Instagram');
+  }
+  if (status !== 'FINISHED') throw new Error('Tempo esgotado aguardando processamento da imagem');
+
+  const publishRes = await fetch(`https://graph.instagram.com/${IG_VERSION}/${igUserId}/media_publish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ creation_id: containerId }),
+  });
+  const publishData = (await publishRes.json()) as any;
+  if (!publishRes.ok || !publishData.id) throw new Error(publishData.error?.message || 'Erro ao publicar imagem');
+
+  console.log(`[Instagram] Imagem publicada! ID: ${publishData.id}`);
+  return { id: publishData.id, url: `https://www.instagram.com/p/${publishData.id}/` };
 }

@@ -1,74 +1,192 @@
 import { Router } from 'express';
-import { authMiddleware } from '../middleware/auth';
-import { uploadReel, uploadPhoto, getInstagramStatus } from '../services/instagram.service';
-import { supabase } from '../services/supabase.service';
+import { authMiddleware } from '../middleware/auth.js';
+import { getAuthUrl, exchangeCodeAndStore, getInstagramStatus, disconnect, uploadReel, uploadPhoto, scheduleReel, } from '../services/instagram.service.js';
+import { getSupabase } from '../services/supabase.service.js';
 const router = Router();
-// Status da conexão
-router.get('/status', authMiddleware, async (req, res) => {
-    try {
-        const status = await getInstagramStatus();
-        res.json(status);
+// GET /api/instagram/auth
+router.get('/auth', authMiddleware, (req, res) => {
+    if (!process.env.INSTAGRAM_APP_ID || !process.env.INSTAGRAM_APP_SECRET) {
+        return res.status(503).json({ error: 'Instagram OAuth não configurado no servidor.' });
     }
-    catch (error) {
-        res.status(500).json({ error: error.message });
+    try {
+        const url = getAuthUrl(req.user.id);
+        res.json({ url });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
-// Publicar Reel
+// GET /api/instagram/callback
+router.get('/callback', async (req, res) => {
+    const { code, error, state: userId } = req.query;
+    const closePopup = (status, message = '') => `
+    <html>
+      <head><title>Instagram Auth</title></head>
+      <body style="font-family:sans-serif;text-align:center;padding:40px;background:#0f0f0f;color:#fff">
+        <p style="font-size:18px">${status === 'connected' ? '✅ Instagram conectado! Esta janela vai fechar...' : `❌ ${message || 'Erro ao conectar. Tente novamente.'}`}</p>
+        <script>
+          window.opener?.postMessage('instagram_${status}', '*');
+          setTimeout(() => window.close(), 2000);
+        </script>
+      </body>
+    </html>`;
+    if (error || !code || typeof code !== 'string' || !userId || typeof userId !== 'string') {
+        return res.send(closePopup('error', 'Autorização cancelada ou inválida.'));
+    }
+    try {
+        await exchangeCodeAndStore(code, userId);
+        res.send(closePopup('connected'));
+    }
+    catch (err) {
+        console.error('[Instagram Callback Error]', err.message);
+        res.send(closePopup('error', err.message));
+    }
+});
+// GET /api/instagram/status
+router.get('/status', authMiddleware, async (req, res) => {
+    try {
+        const status = await getInstagramStatus(req.user.id);
+        res.json(status);
+    }
+    catch {
+        res.json({ connected: false });
+    }
+});
+// DELETE /api/instagram/disconnect
+router.delete('/disconnect', authMiddleware, async (req, res) => {
+    try {
+        await disconnect(req.user.id);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// POST /api/instagram/upload — publica Reel de um projeto
 router.post('/upload', authMiddleware, async (req, res) => {
     const { projectId, caption } = req.body;
     const userId = req.user.id;
+    if (!projectId)
+        return res.status(400).json({ error: 'projectId é obrigatório' });
     try {
-        // 1. Buscar metadados de exportação para pegar o caminho do vídeo no storage
+        const supabase = getSupabase();
         const { data: meta, error } = await supabase
             .from('export_metadata')
             .select('*')
             .eq('project_id', projectId)
             .single();
-        if (error || !meta) {
-            return res.status(404).json({ error: 'O vídeo ainda não foi renderizado ou não foi encontrado' });
+        if (error || !meta?.video_url) {
+            return res.status(404).json({ error: 'Vídeo não encontrado ou ainda não renderizado' });
         }
-        if (!meta.video_url) {
-            return res.status(400).json({ error: 'O vídeo ainda não possui uma URL válida' });
-        }
-        // Gerar uma Signed URL para garantir que o Instagram consiga baixar sem erros de permissão/cache
-        // O caminho no storage é extraído da URL ou reconstruído
         const storagePath = `videos/${projectId}.mp4`;
-        const { data: signedData, error: signedError } = await supabase.storage
-            .from('videos')
-            .createSignedUrl(storagePath, 3600); // 1 hora de validade
-        if (signedError || !signedData?.signedUrl) {
-            console.error('[Instagram] Erro ao gerar Signed URL:', signedError);
-            return res.status(500).json({ error: 'Erro ao gerar link seguro para o Instagram' });
-        }
-        console.log(`[Instagram] Usando Signed URL para upload: ${signedData.signedUrl}`);
-        // 2. Upload para o Instagram usando a URL assinada
-        const result = await uploadReel(signedData.signedUrl, caption || meta.video_title);
-        // 3. Atualizar metadados com o link do Instagram
+        const { data: publicData } = getSupabase().storage.from('videos').getPublicUrl(storagePath);
+        const videoUrl = publicData?.publicUrl ?? meta.video_url;
+        const result = await uploadReel(videoUrl, caption || meta.video_title, userId);
         await supabase
             .from('export_metadata')
-            .update({
-            instagram_url: result.url
-        })
+            .update({ instagram_url: result.url })
             .eq('project_id', projectId);
         res.json({ instagram_url: result.url });
     }
-    catch (error) {
-        console.error('[Instagram Route Error]', error);
-        res.status(500).json({ error: error.message });
+    catch (err) {
+        console.error('[Instagram Route Error]', err);
+        res.status(500).json({ error: err.message });
     }
 });
-// Publicar imagem (post de feed)
+// POST /api/instagram/upload-photo
 router.post('/upload-photo', authMiddleware, async (req, res) => {
     const { imageUrl, caption } = req.body;
+    const userId = req.user.id;
     if (!imageUrl)
         return res.status(400).json({ error: 'imageUrl é obrigatório' });
     try {
-        const result = await uploadPhoto(imageUrl, caption ?? '');
+        const result = await uploadPhoto(imageUrl, caption ?? '', userId);
         res.json({ instagram_url: result.url });
     }
-    catch (error) {
-        console.error('[Instagram Route Error - Photo]', error);
-        res.status(500).json({ error: error.message });
+    catch (err) {
+        console.error('[Instagram Route Error - Photo]', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+// GET /api/instagram/schedules
+router.get('/schedules', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const [schedulesResult, tokenResult] = await Promise.all([
+            getSupabase().from('scheduled_reels').select('*').eq('user_id', userId).order('scheduled_at', { ascending: true }),
+            getSupabase().from('instagram_tokens').select('username').eq('user_id', userId).single(),
+        ]);
+        if (schedulesResult.error)
+            throw schedulesResult.error;
+        const username = tokenResult.data?.username ?? null;
+        const data = (schedulesResult.data ?? []).map(r => ({ ...r, instagram_username: username }));
+        res.json(data);
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// DELETE /api/instagram/schedules/:id
+router.delete('/schedules/:id', authMiddleware, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { error } = await getSupabase()
+            .from('scheduled_reels')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', req.user.id);
+        if (error)
+            throw error;
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// PATCH /api/instagram/schedules/:id
+router.patch('/schedules/:id', authMiddleware, async (req, res) => {
+    const { id } = req.params;
+    const { scheduledAt } = req.body;
+    if (!scheduledAt)
+        return res.status(400).json({ error: 'scheduledAt é obrigatório' });
+    try {
+        const { error } = await getSupabase()
+            .from('scheduled_reels')
+            .update({ scheduled_at: scheduledAt, status: 'pending' })
+            .eq('id', id)
+            .eq('user_id', req.user.id);
+        if (error)
+            throw error;
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// POST /api/instagram/schedule-reel
+router.post('/schedule-reel', authMiddleware, async (req, res) => {
+    const { projectId, caption, scheduledAt } = req.body;
+    const userId = req.user.id;
+    if (!projectId || !scheduledAt)
+        return res.status(400).json({ error: 'projectId e scheduledAt são obrigatórios' });
+    try {
+        const supabase = getSupabase();
+        const { data: meta, error } = await supabase
+            .from('export_metadata')
+            .select('video_url, video_title')
+            .eq('project_id', projectId)
+            .single();
+        if (error || !meta?.video_url)
+            return res.status(404).json({ error: 'Vídeo não encontrado ou ainda não renderizado' });
+        const storagePath = `videos/${projectId}.mp4`;
+        const { data: publicData } = supabase.storage.from('videos').getPublicUrl(storagePath);
+        const videoUrl = publicData?.publicUrl ?? meta.video_url;
+        await scheduleReel(userId, videoUrl, caption || meta.video_title, scheduledAt);
+        res.json({ ok: true, scheduledAt });
+    }
+    catch (err) {
+        console.error('[Instagram Schedule Reel Error]', err);
+        res.status(500).json({ error: err.message });
     }
 });
 export default router;

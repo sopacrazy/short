@@ -739,8 +739,19 @@ export default function CuriosityPost() {
     } catch { setImageError(true); }
     setStage('done');
 
-    // Auto-salvar como rascunho
+    // Auto-salvar como rascunho — faz upload da imagem para o Supabase (URL permanente)
     try {
+      let persistedImageUrl: string | null = finalImageUrl;
+      if (finalImageUrl && imageMode === 'standard') {
+        try {
+          const base64 = await fetchImageAsBase64(
+            `${api.getBaseUrl()}/api/proxy/image?url=${encodeURIComponent(finalImageUrl)}`
+          );
+          const { url } = await api.curiosityPost.uploadComposed(base64);
+          persistedImageUrl = url;
+        } catch { /* mantém URL original como fallback */ }
+      }
+
       const saved = await api.curiosityPosts.create({
         folder_id: selectedFolderId ?? undefined,
         title_white: post.title_white,
@@ -750,7 +761,7 @@ export default function CuriosityPost() {
         caption: post.caption,
         hashtags: post.hashtags,
         image_prompt: post.image_prompt,
-        image_url: finalImageUrl ?? undefined,
+        image_url: persistedImageUrl ?? undefined,
         status: 'draft',
       });
       setSavedPostId(saved.id);

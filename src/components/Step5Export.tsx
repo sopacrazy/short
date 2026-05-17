@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle2, Download, Youtube, Share2, Copy, Rocket, Hash, AlignLeft, Loader2, Video, ExternalLink, Calendar } from 'lucide-react';
-import { api, type ApiMetadata, type ApiScene } from '@/src/lib/api';
+import { CheckCircle2, Download, Youtube, Share2, Copy, Rocket, Hash, AlignLeft, Loader2, Video, ExternalLink, Calendar, AlertTriangle, AlertCircle } from 'lucide-react';
+import { api, type ApiMetadata, type ApiScene, type YouTubeSchedule } from '@/src/lib/api';
 import type { ProjectContext } from '@/src/types';
 import FolderContextBanner from './FolderContextBanner';
 
@@ -30,10 +30,16 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
   const [instagramUrl, setInstagramUrl] = useState<string | null>(null);
   const [instaError, setInstaError] = useState<string | null>(null);
   const [instaSuccess, setInstaSuccess] = useState(false);
+  const [reelScheduled, setReelScheduled] = useState(false);
 
   // Folder/Multi-publish states
   const [folderConfig, setFolderConfig] = useState<{yt: boolean, insta: boolean} | null>(null);
   const [isPublishingAll, setIsPublishingAll] = useState(false);
+
+  // Agendamentos existentes para validação de conflito (por plataforma)
+  const [instagramSchedules, setInstagramSchedules] = useState<any[]>([]);
+  const [youtubeSchedules, setYoutubeSchedules] = useState<YouTubeSchedule[]>([]);
+  const [folderYoutubeAccountId, setFolderYoutubeAccountId] = useState<string | null>(null);
 
   useEffect(() => {
     api.projects.get(project.projectId).then(data => {
@@ -53,17 +59,29 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
       .then(r => setInstaConnected(r.connected))
       .catch(() => {});
 
+    api.instagram.getSchedules()
+      .then(data => setInstagramSchedules(data.filter((s: any) => s.status === 'pending')))
+      .catch(() => {});
+
     // Carregar configurações da pasta para automação
     if (project.folderId) {
       api.folders.list().then(folders => {
         const folder = folders.find(f => f.id === project.folderId);
         if (folder) {
-          setFolderConfig({
-            yt: folder.auto_publish_youtube,
-            insta: folder.auto_publish_instagram
-          });
+          setFolderConfig({ yt: folder.auto_publish_youtube, insta: folder.auto_publish_instagram });
+          const accountId = folder.youtube_account_id ?? undefined;
+          if (accountId) setFolderYoutubeAccountId(accountId);
+          // Carrega schedules do canal específico (ou todos se não há conta configurada)
+          api.youtube.schedules(accountId)
+            .then(data => setYoutubeSchedules(data.filter(s => s.status === 'pending')))
+            .catch(() => {});
         }
       }).catch(() => {});
+    } else {
+      // Projeto sem pasta: carrega todos os schedules para checar conflitos
+      api.youtube.schedules()
+        .then(data => setYoutubeSchedules(data.filter(s => s.status === 'pending')))
+        .catch(() => {});
     }
   }, [project.projectId, project.folderId]);
 
@@ -104,6 +122,20 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
   };
 
   const handlePublishInstagram = async () => {
+    if (scheduleEnabled) {
+      if (!scheduledAt) { setInstaError('Defina a data/hora de agendamento.'); return; }
+      setIsPublishingInsta(true);
+      setInstaError(null);
+      try {
+        await api.instagram.scheduleReel(project.projectId, metadata?.video_title ?? '', new Date(scheduledAt).toISOString());
+        setReelScheduled(true);
+      } catch (err: any) {
+        setInstaError(err.message || 'Erro ao agendar Reel');
+      } finally {
+        setIsPublishingInsta(false);
+      }
+      return;
+    }
     setIsPublishingInsta(true);
     setInstaError(null);
     try {
@@ -134,6 +166,34 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
     setIsPublishingAll(false);
     setShowSuccessModal(true);
   };
+
+  const checkConflict = (schedules: any[], selectedMs: number) => {
+    const selected = new Date(selectedMs);
+    const sameDay = schedules.filter(s => {
+      const d = new Date(s.scheduled_at);
+      return d.getFullYear() === selected.getFullYear()
+        && d.getMonth() === selected.getMonth()
+        && d.getDate() === selected.getDate();
+    });
+    const exactMatch = sameDay.find(s => new Date(s.scheduled_at).getTime() === selectedMs);
+    if (exactMatch) return { type: 'error' as const, schedules: sameDay };
+    if (sameDay.length > 0) return { type: 'warning' as const, schedules: sameDay };
+    return null;
+  };
+
+  const selectedMs = scheduleEnabled && scheduledAt ? new Date(scheduledAt).getTime() : 0;
+
+  // Conflito por canal YouTube (só verifica schedules do mesmo canal)
+  const youtubeConflict = useMemo(() => {
+    if (!scheduleEnabled || !scheduledAt) return null;
+    return checkConflict(youtubeSchedules, new Date(scheduledAt).getTime());
+  }, [scheduleEnabled, scheduledAt, youtubeSchedules]);
+
+  // Conflito por conta Instagram
+  const instagramConflict = useMemo(() => {
+    if (!scheduleEnabled || !scheduledAt) return null;
+    return checkConflict(instagramSchedules, new Date(scheduledAt).getTime());
+  }, [scheduleEnabled, scheduledAt, instagramSchedules]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -304,13 +364,15 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
                   </button>
 
                   {scheduleEnabled && (
-                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="relative w-full sm:w-auto">
-                      <input 
-                        type="datetime-local" 
-                        className="h-14 bg-black/40 border border-white/10 rounded-2xl px-6 text-xs text-white outline-none focus:border-red-500/50 transition-all w-full sm:w-auto font-mono"
+                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="relative w-full sm:w-auto space-y-2">
+                      <input
+                        type="datetime-local"
+                        className={`h-14 bg-black/40 border rounded-2xl px-6 text-xs text-white outline-none transition-all w-full sm:w-auto font-mono ${(youtubeConflict?.type === 'error' || instagramConflict?.type === 'error') ? 'border-red-500/60 focus:border-red-500' : (youtubeConflict?.type === 'warning' || instagramConflict?.type === 'warning') ? 'border-amber-500/60 focus:border-amber-500' : 'border-white/10 focus:border-red-500/50'}`}
                         value={scheduledAt}
                         onChange={(e) => setScheduledAt(e.target.value)}
                       />
+                      <ScheduleConflictAlert conflict={youtubeConflict} label="YouTube" />
+                      <ScheduleConflictAlert conflict={instagramConflict} label="Instagram" />
                     </motion.div>
                   )}
                 </div>
@@ -321,10 +383,10 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Sincronização YouTube</span>
                 </div>
                 
-                <button 
+                <button
                   onClick={handlePublishYouTube}
-                  disabled={isPublishing}
-                  className="w-full sm:w-auto btn-primary py-5 px-12 rounded-[1.5rem] bg-red-600 hover:bg-red-500 border-red-500/50 shadow-2xl shadow-red-600/30 text-base"
+                  disabled={isPublishing || youtubeConflict?.type === 'error'}
+                  className="w-full sm:w-auto btn-primary py-5 px-12 rounded-[1.5rem] bg-red-600 hover:bg-red-500 border-red-500/50 shadow-2xl shadow-red-600/30 text-base disabled:opacity-40"
                 >
                   {isPublishing ? <Loader2 className="w-6 h-6 animate-spin" /> : <Rocket className="w-6 h-6" />}
                   <span>{scheduleEnabled ? 'Agendar no YouTube' : 'Publicar no YouTube'}</span>
@@ -336,7 +398,7 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
 
           {/* Instagram Section */}
           {instagramUrl ? (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               className="p-10 rounded-[2rem] bg-pink-500/5 border border-pink-500/10 flex flex-col md:flex-row items-center justify-between gap-8"
@@ -354,6 +416,22 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
                 <span>Ver no Instagram</span>
                 <ExternalLink className="w-5 h-5" />
               </a>
+            </motion.div>
+          ) : reelScheduled ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-10 rounded-[2rem] bg-purple-500/5 border border-purple-500/10 flex flex-col md:flex-row items-center justify-between gap-8"
+            >
+              <div className="flex items-center gap-6">
+                <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 shadow-xl shadow-purple-500/5">
+                  <Calendar className="w-8 h-8" />
+                </div>
+                <div>
+                  <h4 className="text-xl font-bold text-white mb-1">Reel Agendado!</h4>
+                  <p className="text-sm text-gray-500">Será publicado automaticamente em {new Date(scheduledAt).toLocaleString('pt-BR')}.</p>
+                </div>
+              </div>
             </motion.div>
           ) : (
             <div className="group relative overflow-hidden glass-card border-white/5 bg-white/[0.02] p-10 hover:border-pink-500/20 transition-all duration-500">
@@ -373,20 +451,20 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
 
                 <div className="shrink-0">
                   {!instaConnected ? (
-                    <button 
+                    <button
                       onClick={() => window.open('https://developers.facebook.com/apps/1310746801013095/fb-login/', '_blank')}
                       className="h-14 px-8 rounded-2xl border border-white/5 bg-white/5 text-gray-300 text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-all"
                     >
                       Configurar App
                     </button>
                   ) : (
-                    <button 
+                    <button
                       onClick={handlePublishInstagram}
-                      disabled={isPublishingInsta}
-                      className="w-full sm:w-auto btn-primary py-5 px-12 rounded-[1.5rem] bg-gradient-to-r from-orange-600 to-pink-600 hover:from-orange-500 hover:to-pink-500 border-none shadow-2xl shadow-pink-600/30 text-base"
+                      disabled={isPublishingInsta || (scheduleEnabled && !scheduledAt) || instagramConflict?.type === 'error'}
+                      className="w-full sm:w-auto btn-primary py-5 px-12 rounded-[1.5rem] bg-gradient-to-r from-orange-600 to-pink-600 hover:from-orange-500 hover:to-pink-500 border-none shadow-2xl shadow-pink-600/30 text-base disabled:opacity-40"
                     >
-                      {isPublishingInsta ? <Loader2 className="w-6 h-6 animate-spin" /> : <Rocket className="w-6 h-6" />}
-                      <span>{isPublishingInsta ? 'Processando Reels...' : 'Publicar no Reels'}</span>
+                      {isPublishingInsta ? <Loader2 className="w-6 h-6 animate-spin" /> : scheduleEnabled ? <Calendar className="w-6 h-6" /> : <Rocket className="w-6 h-6" />}
+                      <span>{isPublishingInsta ? 'Agendando...' : scheduleEnabled ? 'Agendar Reel' : 'Publicar no Reels'}</span>
                     </button>
                   )}
                 </div>
@@ -485,6 +563,33 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
           </div>
         )}
       </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function ScheduleConflictAlert({ conflict, label }: { conflict: { type: 'error' | 'warning'; schedules: any[] } | null; label?: string }) {
+  if (!conflict) return null;
+
+  const isError = conflict.type === 'error';
+  const times = conflict.schedules.map(s =>
+    new Date(s.scheduled_at).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  );
+  const prefix = label ? `[${label}] ` : '';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`flex items-start gap-2 px-4 py-3 rounded-xl border text-xs font-medium leading-snug max-w-xs ${isError ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}
+    >
+      {isError
+        ? <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+        : <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />}
+      <span>
+        {isError
+          ? `${prefix}Já existe um agendamento para este horário exato neste canal. Escolha outro horário.`
+          : `${prefix}Já há ${conflict.schedules.length} vídeo${conflict.schedules.length > 1 ? 's' : ''} agendado${conflict.schedules.length > 1 ? 's' : ''} para este dia neste canal (${times.join(', ')}).`}
+      </span>
     </motion.div>
   );
 }

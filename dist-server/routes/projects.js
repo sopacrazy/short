@@ -231,6 +231,8 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     const { error } = await supabase.from('projects').delete().eq('id', id).eq('user_id', userId);
     if (error)
         return res.status(500).json({ error: error.message });
-    return res.status(204).send();
+    // Remove agendamentos de Reels vinculados a este projeto
+    await supabase.from('scheduled_reels').delete().like('video_url', `%${id}%`);
+    return res.json({ ok: true });
 });
 export default router;

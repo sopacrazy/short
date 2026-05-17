@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getAuthUrl, exchangeCodeAndStore, isConnected, uploadToYouTube } from '../services/youtube.service.js';
+import { getAuthUrl, exchangeCodeAndStore, isConnected, uploadToYouTube, listAccounts, removeAccount } from '../services/youtube.service.js';
 import { getSupabase } from '../services/supabase.service.js';
 import { authMiddleware } from '../middleware/auth.js';
 const router = Router();
@@ -42,7 +42,7 @@ router.get('/callback', async (req, res) => {
         res.send(closePopup('error'));
     }
 });
-// GET /api/youtube/status — verifica se há tokens salvos
+// GET /api/youtube/status — verifica se há pelo menos uma conta conectada
 router.get('/status', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     try {
@@ -51,6 +51,29 @@ router.get('/status', authMiddleware, async (req, res) => {
     }
     catch {
         res.json({ connected: false });
+    }
+});
+// GET /api/youtube/accounts — lista todas as contas conectadas do usuário
+router.get('/accounts', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const accounts = await listAccounts(userId);
+        res.json(accounts);
+    }
+    catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Erro ao listar contas' });
+    }
+});
+// DELETE /api/youtube/accounts/:id — remove uma conta YouTube
+router.delete('/accounts/:id', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const accountId = req.params.id;
+    try {
+        await removeAccount(accountId, userId);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Erro ao remover conta' });
     }
 });
 // POST /api/youtube/upload — publica o vídeo de um projeto no YouTube
@@ -67,7 +90,7 @@ router.post('/upload', authMiddleware, async (req, res) => {
     }
     // Sem timeout — upload pode demorar para arquivos grandes
     req.socket.setTimeout(0);
-    // Busca metadados + idioma do projeto via pasta
+    // Busca metadados do projeto
     const { data: metadata, error } = await supabase
         .from('export_metadata')
         .select('video_url, video_title, description, hashtags')
@@ -79,7 +102,7 @@ router.post('/upload', authMiddleware, async (req, res) => {
     if (!metadata.video_url) {
         return res.status(400).json({ error: 'Vídeo ainda não renderizado.' });
     }
-    // Resolve idioma e tags fixas da pasta do projeto
+    // Resolve idioma, tags e conta YouTube da pasta do projeto
     const { data: project } = await supabase
         .from('projects')
         .select('folder_id')
@@ -87,23 +110,55 @@ router.post('/upload', authMiddleware, async (req, res) => {
         .single();
     let language = 'pt';
     let folderTags = [];
+    let youtubeAccountId;
     if (project?.folder_id) {
         const { data: folder } = await supabase
             .from('folders')
-            .select('default_language, default_youtube_tags')
+            .select('default_language, default_youtube_tags, youtube_account_id')
             .eq('id', project.folder_id)
             .single();
         if (folder?.default_language)
             language = folder.default_language;
         if (folder?.default_youtube_tags?.length)
             folderTags = folder.default_youtube_tags;
+        if (folder?.youtube_account_id)
+            youtubeAccountId = folder.youtube_account_id;
+    }
+    // Bloqueia agendamento duplicado no mesmo canal e horário
+    if (scheduledAt && youtubeAccountId) {
+        const scheduledMs = new Date(scheduledAt).getTime();
+        const { data: conflicts } = await supabase
+            .from('youtube_schedules')
+            .select('id')
+            .eq('youtube_account_id', youtubeAccountId)
+            .eq('status', 'pending')
+            .gte('scheduled_at', new Date(scheduledMs - 60000).toISOString())
+            .lte('scheduled_at', new Date(scheduledMs + 60000).toISOString());
+        if (conflicts && conflicts.length > 0) {
+            return res.status(409).json({ error: 'Já existe um vídeo agendado para este horário neste canal. Escolha outro horário.' });
+        }
     }
     try {
-        const youtubeUrl = await uploadToYouTube(metadata.video_url, metadata.video_title, metadata.description, metadata.hashtags ?? [], language, folderTags, scheduledAt, userId);
-        await supabase
-            .from('export_metadata')
-            .update({ youtube_url: youtubeUrl })
-            .eq('project_id', projectId);
+        const youtubeUrl = await uploadToYouTube(metadata.video_url, metadata.video_title, metadata.description, metadata.hashtags ?? [], language, folderTags, scheduledAt, youtubeAccountId, userId);
+        // Extrai o video ID da URL (youtube.com/shorts/VIDEO_ID)
+        const videoId = youtubeUrl.split('/').pop() ?? null;
+        const saves = [
+            supabase.from('export_metadata').update({ youtube_url: youtubeUrl }).eq('project_id', projectId),
+        ];
+        // Salva na tabela de agendamentos se foi agendado
+        if (scheduledAt && youtubeAccountId) {
+            saves.push(supabase.from('youtube_schedules').insert({
+                project_id: projectId,
+                user_id: userId,
+                youtube_account_id: youtubeAccountId,
+                title: metadata.video_title,
+                scheduled_at: new Date(scheduledAt).toISOString(),
+                youtube_video_id: videoId,
+                youtube_url: youtubeUrl,
+                status: 'pending',
+            }));
+        }
+        await Promise.all(saves);
         res.json({ youtube_url: youtubeUrl });
     }
     catch (err) {
@@ -111,5 +166,38 @@ router.post('/upload', authMiddleware, async (req, res) => {
         const message = err instanceof Error ? err.message : 'Erro ao publicar no YouTube';
         res.status(500).json({ error: message });
     }
+});
+// GET /api/youtube/schedules — lista agendamentos YouTube do usuário
+router.get('/schedules', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const { account_id } = req.query;
+    try {
+        let query = getSupabase()
+            .from('youtube_schedules')
+            .select('*, youtube_accounts(channel_name, channel_id)')
+            .eq('user_id', userId)
+            .order('scheduled_at', { ascending: true });
+        if (account_id)
+            query = query.eq('youtube_account_id', account_id);
+        const { data, error } = await query;
+        if (error)
+            throw new Error(error.message);
+        res.json(data ?? []);
+    }
+    catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Erro' });
+    }
+});
+// DELETE /api/youtube/schedules/:id — cancela um agendamento YouTube
+router.delete('/schedules/:id', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const { error } = await getSupabase()
+        .from('youtube_schedules')
+        .delete()
+        .eq('id', req.params.id)
+        .eq('user_id', userId);
+    if (error)
+        return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
 });
 export default router;

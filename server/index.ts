@@ -10,7 +10,7 @@ import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 
 import projectsRouter from './routes/projects.js';
-import { generateThemeSuggestions } from './services/openai.service.js';
+import { generateThemeSuggestions, translateTexts } from './services/openai.service.js';
 import scriptsRouter from './routes/scripts.js';
 import narrationRouter from './routes/narration.js';
 import imagesRouter from './routes/images.js';
@@ -53,6 +53,12 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '50mb' }));
 
+// Faz ngrok ignorar o aviso de segurança para requests de OAuth callback
+app.use((_req, res, next) => {
+  res.setHeader('ngrok-skip-browser-warning', 'true');
+  next();
+});
+
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
@@ -78,6 +84,20 @@ app.get('/api/voices', authMiddleware, async (req: any, res) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro';
     res.status(500).json({ error: message });
+  }
+});
+
+app.post('/api/translate', authMiddleware, async (req: any, res) => {
+  const { texts, targetLang } = req.body as { texts: string[]; targetLang?: string };
+  const userId = req.user.id;
+  if (!Array.isArray(texts) || texts.length === 0) return res.status(400).json({ error: 'texts é obrigatório' });
+  try {
+    const keys = await getUserAIKeys(userId);
+    const translated = await translateTexts(texts, targetLang, keys.openai_key);
+    return res.json({ translations: translated });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Erro';
+    return res.status(500).json({ error: message });
   }
 });
 

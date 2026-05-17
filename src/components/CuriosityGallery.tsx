@@ -6,6 +6,7 @@ import {
   Instagram,
 } from 'lucide-react';
 import { api, type CuriosityPostRecord, type PostStatus } from '../lib/api';
+import { supabase } from '../lib/supabase';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,14 @@ const STATUS_CONFIG: Record<PostStatus, { label: string; color: string; bg: stri
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+}
+
+function getDisplayImage(post: CuriosityPostRecord): string | null {
+  if (post.composed_image_path) {
+    const { data } = supabase.storage.from('videos').getPublicUrl(post.composed_image_path);
+    return data.publicUrl ?? post.image_url ?? null;
+  }
+  return post.image_url ?? null;
 }
 
 // ─── Schedule Modal ──────────────────────────────────────────────────────────
@@ -112,8 +121,8 @@ function DetailModal({ post, onSchedule, onCancelSchedule, onDelete, onClose }: 
       >
         {/* Imagem */}
         <div className="relative aspect-square w-full max-h-64 bg-black overflow-hidden">
-          {post.image_url ? (
-            <img src={post.image_url} alt="Post" className="w-full h-full object-cover" />
+          {getDisplayImage(post) ? (
+            <img src={getDisplayImage(post)!} alt="Post" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <Images className="w-12 h-12 text-gray-700" />
@@ -199,6 +208,7 @@ function DetailModal({ post, onSchedule, onCancelSchedule, onDelete, onClose }: 
 
 function PostCard({ post, onClick }: { post: CuriosityPostRecord; onClick: () => void }) {
   const s = STATUS_CONFIG[post.status];
+  const displayImage = getDisplayImage(post);
   return (
     <motion.button
       layout
@@ -208,8 +218,8 @@ function PostCard({ post, onClick }: { post: CuriosityPostRecord; onClick: () =>
       onClick={onClick}
       className="relative aspect-square rounded-2xl overflow-hidden bg-[#0A0A0B] border border-white/5 hover:border-ai-primary/30 transition-all group cursor-pointer text-left"
     >
-      {post.image_url ? (
-        <img src={post.image_url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+      {displayImage ? (
+        <img src={displayImage} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
       ) : (
         <div className="w-full h-full flex items-center justify-center">
           <Images className="w-10 h-10 text-gray-700" />

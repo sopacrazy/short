@@ -7,25 +7,40 @@ interface AuthProps {
   onSession: () => void;
 }
 
+const LOGIN_TIMEOUT_MS = 12_000;
+
 export default function Auth({ onSession }: AuthProps) {
-  const [email, setEmail] = useState('adrianoborges.ti@gmail.com');
-  const [password, setPassword] = useState('sopa1988');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState('Verificando credenciais...');
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setLoadingMsg('Verificando credenciais...');
+
+    // Mensagem progressiva se demorar mais de 4s
+    const msgTimer = setTimeout(() => setLoadingMsg('Conectando ao servidor...'), 4000);
+
+    // Timeout duro de 12s
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('O servidor demorou muito para responder. Verifique sua conexão e tente novamente.')), LOGIN_TIMEOUT_MS)
+    );
 
     try {
-      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-
+      const { error: authError } = await Promise.race([
+        supabase.auth.signInWithPassword({ email, password }),
+        timeoutPromise,
+      ]);
       if (authError) throw authError;
       onSession();
     } catch (err: any) {
       setError(err.message || 'Erro na autenticação');
     } finally {
+      clearTimeout(msgTimer);
       setLoading(false);
     }
   };
@@ -52,7 +67,7 @@ export default function Auth({ onSession }: AuthProps) {
             <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/10 flex items-center justify-center text-ai-primary">
               <Sparkles className="w-6 h-6" />
             </div>
-            <span className="text-2xl font-display font-bold text-white tracking-tight">Clipaai</span>
+            <span className="text-2xl font-display font-bold text-white tracking-tight">Moodclip</span>
           </div>
 
           <div className="max-w-md space-y-8">
@@ -90,7 +105,7 @@ export default function Auth({ onSession }: AuthProps) {
           </div>
 
           <div className="text-sm text-gray-600 font-medium">
-            © 2026 Clipaai Inc. Todos os direitos reservados.
+            © 2026 Moodclip Inc. Todos os direitos reservados.
           </div>
         </div>
       </div>
@@ -107,7 +122,7 @@ export default function Auth({ onSession }: AuthProps) {
         >
           <div className="lg:hidden text-center mb-10">
             <Sparkles className="w-12 h-12 text-ai-primary mx-auto mb-4" />
-            <h1 className="text-3xl font-display font-bold text-white">Clipaai</h1>
+            <h1 className="text-3xl font-display font-bold text-white">Moodclip</h1>
           </div>
 
           <div className="space-y-4">
@@ -171,10 +186,13 @@ export default function Auth({ onSession }: AuthProps) {
             <button
               disabled={loading}
               type="submit"
-              className="w-full group relative flex items-center justify-center gap-3 py-4.5 rounded-2xl bg-white text-black font-bold text-sm hover:bg-gray-100 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 shadow-2xl shadow-white/5"
+              className="w-full group relative flex items-center justify-center gap-3 py-4.5 rounded-2xl bg-white text-black font-bold text-sm hover:bg-gray-100 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-60 shadow-2xl shadow-white/5"
             >
               {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <span className="flex items-center gap-3">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-xs font-medium">{loadingMsg}</span>
+                </span>
               ) : (
                 <>
                   <span>Entrar na Plataforma</span>

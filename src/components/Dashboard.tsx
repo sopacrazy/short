@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Plus, History, TrendingUp, Clock,
-  Video, Play, CheckCircle, Loader2,
-  Trash2, Pencil, X, AlertTriangle, Youtube,
-  Sparkles,
-  ArrowRight,
-  Zap,
+  History, Play, Loader2,
+  Trash2, Pencil, Youtube,
   Clapperboard,
 } from 'lucide-react';
 import { api, type ApiProject } from '../lib/api';
@@ -78,38 +74,6 @@ export default function Dashboard({ onStartProject, onEditProject, onExportProje
           <div className="glass-card px-8 py-4 border-white/5 bg-[#141415]/40 flex flex-col items-center min-w-[120px]">
             <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-1">Processando</span>
             <span className="text-2xl font-display font-bold text-ai-primary">{inProgressCount}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Actions - Replaced Big Button */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-        <div 
-          onClick={onStartProject}
-          className="md:col-span-8 group relative h-48 rounded-[2rem] bg-[#141415] border border-white/5 p-10 cursor-pointer overflow-hidden transition-all hover:border-ai-primary/40 hover:bg-[#1A1A1E]"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-ai-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 h-full flex items-center justify-between">
-            <div className="space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-ai-primary/10 flex items-center justify-center text-ai-primary group-hover:scale-110 transition-transform">
-                <Plus className="w-6 h-6" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-display font-bold text-white mb-1">Criar Novo Vídeo</h2>
-                <p className="text-gray-500 text-sm font-medium">Inicie uma nova produção cinematográfica com IA.</p>
-              </div>
-            </div>
-            <ArrowRight className="w-8 h-8 text-gray-800 group-hover:text-ai-primary group-hover:translate-x-2 transition-all" />
-          </div>
-        </div>
-
-        <div className="md:col-span-4 glass-card p-10 flex flex-col justify-between items-start border-white/5 hover:bg-[#141415] transition-colors group cursor-pointer">
-          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-ai-secondary group-hover:scale-110 transition-transform">
-            <TrendingUp className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold mb-1">Ver Tendências</h3>
-            <p className="text-gray-600 text-xs leading-relaxed">Inspire-se com os nichos mais virais de hoje.</p>
           </div>
         </div>
       </div>

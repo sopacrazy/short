@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Menu, Settings, LogOut, Bell, HelpCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Menu, Settings, LogOut, Bell, HelpCircle, Sparkles } from 'lucide-react';
 import { AppStep, type ProjectContext } from './types';
-import type { ApiProject } from './lib/api';
+import type { ApiProject, YouTubeAccount } from './lib/api';
 import { api } from './lib/api';
 import type { FolderDefaults } from './types';
 import { supabase } from './lib/supabase';
@@ -18,6 +18,7 @@ import Auth from './components/Auth';
 import ViralPhrases from './components/ViralPhrases';
 import CuriosityPost from './components/CuriosityPost';
 import CuriosityGallery from './components/CuriosityGallery';
+import Agendamentos from './components/Agendamentos';
 import SettingsModal from './components/SettingsModal';
 import Toast, { type ToastType } from './components/Toast';
 import { motion, AnimatePresence } from 'motion/react';
@@ -38,7 +39,12 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const [pendingFolderDefaults, setPendingFolderDefaults] = useState<FolderDefaults | null>(null);
-  const [integrationsStatus, setIntegrationsStatus] = useState({ ai: false, youtube: false, instagram: false });
+  const [integrationsStatus, setIntegrationsStatus] = useState({ ai: false, youtube: false, instagram: false, instagramUsername: '' });
+  const [youtubeAccounts, setYoutubeAccounts] = useState<YouTubeAccount[]>([]);
+
+  // Evita re-checar integrações a cada evento onAuthStateChange (token refresh, etc.)
+  const _lastIntegrationCheck = useRef(0);
+  const INTEGRATION_TTL = 2 * 60 * 1000; // 2 minutos
 
   const notify = (message: string, type: ToastType = 'info') => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -65,26 +71,87 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkIntegrations = async () => {
+  const checkIntegrations = async (force = false) => {
+    const now = Date.now();
+    if (!force && now - _lastIntegrationCheck.current < INTEGRATION_TTL) return;
+    _lastIntegrationCheck.current = now;
     try {
-      const [voices, yt, insta] = await Promise.all([
+      const [voices, ytAccounts, insta] = await Promise.all([
         api.narration.voices(),
-        api.youtube.status(),
+        api.youtube.accounts(),
         api.instagram.status(),
       ]);
+      setYoutubeAccounts(ytAccounts);
       setIntegrationsStatus({
         ai: voices.length > 0,
-        youtube: yt.connected,
+        youtube: ytAccounts.length > 0,
         instagram: insta.connected,
+        instagramUsername: insta.username ?? '',
       });
     } catch (err) {
-      console.error('Error checking integrations:', err);
-      // Se falhar a conexão básica ou der 401, e estivermos no início, 
-      // volta para o login para garantir sincronia com o servidor
-      if (currentStep === AppStep.DASHBOARD || currentStep === AppStep.PROJECTS) {
-        notify('Conexão com servidor perdida. Por favor, entre novamente.', 'error');
-        supabase.auth.signOut();
-      }
+      console.error('Erro ao checar integrações:', err);
+      // Não desloga — erro de rede não deve encerrar a sessão
+    }
+  };
+
+  const handleAddYouTubeAccount = async () => {
+    try {
+      const { url } = await api.youtube.getAuthUrl();
+      const popup = window.open(url, 'youtube_oauth', 'width=500,height=650,left=400,top=100');
+      const handler = (e: MessageEvent) => {
+        if (e.data === 'youtube_connected') {
+          window.removeEventListener('message', handler);
+          popup?.close();
+          checkIntegrations(true);
+          notify('Conta YouTube adicionada com sucesso!', 'success');
+        }
+      };
+      window.addEventListener('message', handler);
+    } catch {
+      notify('Erro ao iniciar conexão com YouTube', 'error');
+    }
+  };
+
+  const handleRemoveYouTubeAccount = async (id: string) => {
+    try {
+      await api.youtube.removeAccount(id);
+      setYoutubeAccounts(prev => prev.filter(a => a.id !== id));
+      setIntegrationsStatus(prev => ({ ...prev, youtube: youtubeAccounts.length > 1 }));
+      notify('Conta YouTube removida.', 'info');
+    } catch {
+      notify('Erro ao remover conta YouTube', 'error');
+    }
+  };
+
+  const handleConnectInstagram = async () => {
+    try {
+      const { url } = await api.instagram.getAuthUrl();
+      const popup = window.open(url, 'instagram_oauth', 'width=500,height=750,left=400,top=100');
+      const handler = (e: MessageEvent) => {
+        if (e.data === 'instagram_connected' || e.data === 'instagram_error') {
+          window.removeEventListener('message', handler);
+          popup?.close();
+          if (e.data === 'instagram_connected') {
+            checkIntegrations(true);
+            notify('Instagram conectado com sucesso!', 'success');
+          } else {
+            notify('Erro ao conectar Instagram. Verifique se sua conta tem perfil Business/Creator.', 'error');
+          }
+        }
+      };
+      window.addEventListener('message', handler);
+    } catch {
+      notify('Erro ao iniciar conexão com Instagram', 'error');
+    }
+  };
+
+  const handleDisconnectInstagram = async () => {
+    try {
+      await api.instagram.disconnect();
+      setIntegrationsStatus(prev => ({ ...prev, instagram: false }));
+      notify('Instagram desconectado.', 'info');
+    } catch {
+      notify('Erro ao desconectar Instagram', 'error');
     }
   };
 
@@ -117,6 +184,11 @@ export default function App() {
   const goToCuriosityGallery = () => {
     setProject(null);
     setCurrentStep(AppStep.CURIOSITY_GALLERY);
+  };
+
+  const goToSchedules = () => {
+    setProject(null);
+    setCurrentStep(AppStep.SCHEDULES);
   };
 
   const handleTopicDone = (ctx: ProjectContext) => {
@@ -180,7 +252,14 @@ export default function App() {
     }
   };
 
-  if (authLoading) return null;
+  if (authLoading) return (
+    <div className="flex h-screen w-full items-center justify-center bg-ai-dark">
+      <div className="flex flex-col items-center gap-4">
+        <Sparkles className="w-10 h-10 text-ai-primary animate-pulse" />
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600 animate-pulse">Carregando...</p>
+      </div>
+    </div>
+  );
 
   if (!session) return <Auth onSession={() => {}} />;
 
@@ -196,6 +275,7 @@ export default function App() {
     [AppStep.VIRAL_PHRASES]: 'Post de Frases',
     [AppStep.CURIOSITY_POST]: 'Post de Curiosidades',
     [AppStep.CURIOSITY_GALLERY]: 'Galeria de Posts',
+    [AppStep.SCHEDULES]: 'Agendamentos',
   };
 
   return (
@@ -207,9 +287,15 @@ export default function App() {
         onNavigateViralPhrases={goToViralPhrases}
         onNavigateCuriosityPost={goToCuriosityPost}
         onNavigateCuriosityGallery={goToCuriosityGallery}
+        onNavigateSchedules={goToSchedules}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         integrationsStatus={integrationsStatus}
+        youtubeAccounts={youtubeAccounts}
+        onAddYouTubeAccount={handleAddYouTubeAccount}
+        onRemoveYouTubeAccount={handleRemoveYouTubeAccount}
+        onConnectInstagram={handleConnectInstagram}
+        onDisconnectInstagram={handleDisconnectInstagram}
       />
 
       <main className="flex-1 relative overflow-y-auto flex flex-col">
@@ -273,13 +359,15 @@ export default function App() {
               <Dashboard onStartProject={startNewProject} onEditProject={handleEditProject} onExportProject={handleExportProject} />
             )}
 
-            {currentStep === AppStep.PROJECTS && <ProjectsView onStartProject={startNewProject} onEditProject={handleEditProject} onExportProject={handleExportProject} />}
+            {currentStep === AppStep.PROJECTS && <ProjectsView onStartProject={startNewProject} onEditProject={handleEditProject} onExportProject={handleExportProject} youtubeAccounts={youtubeAccounts} />}
             
             {currentStep === AppStep.VIRAL_PHRASES && <ViralPhrases />}
 
             {currentStep === AppStep.CURIOSITY_POST && <CuriosityPost />}
 
             {currentStep === AppStep.CURIOSITY_GALLERY && <CuriosityGallery />}
+
+            {currentStep === AppStep.SCHEDULES && <Agendamentos />}
 
             {currentStep === AppStep.TOPIC_SELECTION && (
               <Step1Topic onNext={handleTopicDone} onAutoGenerate={handleAutoGenerate} folderContext={pendingFolderDefaults ?? undefined} />
