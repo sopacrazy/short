@@ -105,6 +105,44 @@ router.post('/', async (req: any, res) => {
   res.end();
 });
 
+// POST /api/projects/:projectId/images/:sceneId/upload — substituir imagem por upload manual
+router.post('/:sceneId/upload', async (req: any, res) => {
+  const { projectId, sceneId } = req.params as { projectId: string; sceneId: string };
+  const userId = req.user.id;
+  const { imageBase64, mimeType = 'image/jpeg' } = req.body as { imageBase64?: string; mimeType?: string };
+
+  if (!imageBase64) return res.status(400).json({ error: 'imageBase64 é obrigatório' });
+
+  const { data: project } = await supabase.from('projects').select('id').eq('id', projectId).eq('user_id', userId).single();
+  if (!project) return res.status(403).json({ error: 'Não autorizado' });
+
+  const { data: scene } = await supabase.from('scenes').select('*').eq('id', sceneId).single();
+  if (!scene) return res.status(404).json({ error: 'Cena não encontrada' });
+
+  try {
+    const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+    const buffer = Buffer.from(imageBase64, 'base64');
+    const storagePath = `scenes/${projectId}/${sceneId}_${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('audio')
+      .upload(storagePath, buffer, { contentType: mimeType, upsert: true });
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage.from('audio').getPublicUrl(storagePath);
+
+    const { data: updated } = await supabase.from('scenes').update({ image_url: publicUrl }).eq('id', sceneId).select().single();
+
+    if (scene.scene_number === 1) {
+      await supabase.from('projects').update({ thumbnail_url: publicUrl }).eq('id', projectId);
+    }
+
+    return res.json(updated);
+  } catch (err) {
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
 // POST /api/projects/:projectId/images/:sceneId — regenerar individual
 router.post('/:sceneId', async (req: any, res) => {
   const { projectId, sceneId } = req.params as { projectId: string; sceneId: string };

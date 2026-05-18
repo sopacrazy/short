@@ -110,21 +110,21 @@ export default function Step3Production({ project: projectCtx, onNext, onBack }:
     finally { setIsRegeneratingScene(null); }
   };
 
-  const handleSceneImageUpload = async (sceneId: string, file: File) => {
+  const handleSceneImageUpload = (sceneId: string, file: File) => {
     setIsUploadingScene(sceneId);
-    try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      try {
         const base64 = (reader.result as string).split(',')[1];
         const updatedScene = await api.images.upload(projectCtx.projectId, sceneId, base64, file.type);
         setScenes(prev => prev ? prev.map(s => s.id === sceneId ? updatedScene : s) : null);
+      } catch (err) {
+        console.error('[Upload imagem]', err);
+      } finally {
         setIsUploadingScene(null);
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      console.error(err);
-      setIsUploadingScene(null);
-    }
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleEndCardUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
