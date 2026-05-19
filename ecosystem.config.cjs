@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'moodclip-server',
       script: 'dist-server/index.js',
-      cwd: '/root/short',           // ajuste se o caminho no servidor for diferente
+      cwd: '/var/www/clipai-backend',
       interpreter: 'node',
       instances: 1,
       autorestart: true,
@@ -16,7 +16,7 @@ module.exports = {
     {
       name: 'moodclip-agent',
       script: 'src/index.js',
-      cwd: '/root/short/agent',     // ajuste se necessário
+      cwd: '/var/www/clipai-backend/agent',
       interpreter: 'node',
       instances: 1,
       autorestart: true,
