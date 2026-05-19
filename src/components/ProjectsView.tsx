@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus, Folder, Trash2, Pencil, X, Loader2,
-  Play, Clapperboard, Youtube, Instagram, Settings2,
+  Play, Pause, Clapperboard, Youtube, Instagram, Settings2,
   Clock, Hash, Palette, FolderPlus,
   Share2, ChevronRight, Eye, Mic2, Languages, Zap, CheckCircle, UserCircle
 } from 'lucide-react';
@@ -21,6 +21,20 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [voices, setVoices] = useState<Voice[]>([]);
+
+  const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null);
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+
+  const playVoicePreview = (voiceId: string, previewUrl?: string) => {
+    if (previewAudio) { previewAudio.pause(); previewAudio.currentTime = 0; }
+    if (playingVoiceId === voiceId) { setPlayingVoiceId(null); setPreviewAudio(null); return; }
+    if (!previewUrl) return;
+    const audio = new Audio(previewUrl);
+    audio.onended = () => { setPlayingVoiceId(null); setPreviewAudio(null); };
+    audio.play();
+    setPreviewAudio(audio);
+    setPlayingVoiceId(voiceId);
+  };
 
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [showFolderSettings, setShowFolderSettings] = useState<ApiFolder | null>(null);
@@ -80,6 +94,19 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
         youtube_account_id: editFolder.youtubeAccountId || null,
       });
       setFolders(prev => prev.map(f => f.id === updated.id ? updated : f));
+      setShowFolderSettings(null);
+    } catch (err) { console.error(err); }
+    finally { setIsProcessing(false); }
+  };
+
+  const handleDeleteFolder = async () => {
+    if (!showFolderSettings) return;
+    if (!window.confirm(`Excluir a pasta "${showFolderSettings.name}"? Os projetos dentro dela não serão excluídos.`)) return;
+    setIsProcessing(true);
+    try {
+      await api.folders.delete(showFolderSettings.id);
+      setFolders(prev => prev.filter(f => f.id !== showFolderSettings.id));
+      if (selectedFolderId === showFolderSettings.id) setSelectedFolderId(null);
       setShowFolderSettings(null);
     } catch (err) { console.error(err); }
     finally { setIsProcessing(false); }
@@ -384,18 +411,34 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
                         <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-2">
                           <Mic2 className="w-3 h-3" /> Narrador ElevenLabs
                         </label>
-                        <div className="relative group">
-                          <select 
-                            value={editFolder.voiceId}
-                            onChange={e => setEditFolder({ ...editFolder, voiceId: e.target.value })}
-                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-sm font-bold text-white appearance-none cursor-pointer focus:border-ai-primary/50 transition-all outline-none pr-10"
+                        <div className="space-y-1 max-h-56 overflow-y-auto pr-1 rounded-2xl">
+                          {/* Opção nenhum */}
+                          <button
+                            onClick={() => setEditFolder({ ...editFolder, voiceId: '' })}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all text-xs font-bold ${editFolder.voiceId === '' ? 'bg-ai-primary/10 border-ai-primary/40 text-white' : 'bg-black/20 border-white/5 text-gray-500 hover:border-white/10'}`}
                           >
-                            <option value="">Nenhum (Usar padrão)</option>
-                            {voices.map(v => (
-                              <option key={v.voice_id} value={v.voice_id}>{v.name}</option>
-                            ))}
-                          </select>
-                          <ChevronRight className="w-4 h-4 text-gray-500 absolute right-4 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none transition-transform group-hover:text-white" />
+                            <span className="flex-1">Nenhum (Usar padrão)</span>
+                          </button>
+                          {voices.map(v => (
+                            <div key={v.voice_id} className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all ${editFolder.voiceId === v.voice_id ? 'bg-ai-primary/10 border-ai-primary/40' : 'bg-black/20 border-white/5 hover:border-white/10'}`}>
+                              <button
+                                onClick={() => setEditFolder({ ...editFolder, voiceId: v.voice_id })}
+                                className="flex-1 text-left text-xs font-bold text-white"
+                              >
+                                {v.name}
+                                {v.description && <span className="ml-1 font-normal text-gray-500">· {v.description}</span>}
+                              </button>
+                              {v.preview_url && (
+                                <button
+                                  onClick={() => playVoicePreview(v.voice_id, v.preview_url!)}
+                                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${playingVoiceId === v.voice_id ? 'bg-ai-primary text-white' : 'bg-white/5 text-gray-400 hover:bg-ai-primary/20 hover:text-ai-primary'}`}
+                                  title="Ouvir prévia"
+                                >
+                                  {playingVoiceId === v.voice_id ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 ml-0.5" />}
+                                </button>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
 
@@ -439,15 +482,23 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
 
               {/* Ações Finais */}
               <div className="flex items-center gap-4 pt-6 border-t border-white/5">
-                <button 
-                  onClick={() => setShowFolderSettings(null)} 
+                <button
+                  onClick={handleDeleteFolder}
+                  disabled={isProcessing}
+                  className="p-4 rounded-2xl border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 transition-all disabled:opacity-50"
+                  title="Excluir pasta"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setShowFolderSettings(null)}
                   className="flex-1 py-4 text-xs font-bold text-gray-500 uppercase tracking-widest hover:text-white transition-colors"
                 >
                   Cancelar
                 </button>
-                <button 
-                  onClick={handleUpdateFolder} 
-                  disabled={isProcessing} 
+                <button
+                  onClick={handleUpdateFolder}
+                  disabled={isProcessing}
                   className="flex-[2] py-4 bg-gradient-to-r from-ai-primary to-ai-secondary text-white rounded-2xl text-sm font-bold shadow-xl shadow-ai-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
                 >
                   {isProcessing ? (

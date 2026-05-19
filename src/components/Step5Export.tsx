@@ -70,18 +70,15 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
         if (folder) {
           setFolderConfig({ yt: folder.auto_publish_youtube, insta: folder.auto_publish_instagram });
           const accountId = folder.youtube_account_id ?? undefined;
-          if (accountId) setFolderYoutubeAccountId(accountId);
-          // Carrega schedules do canal específico (ou todos se não há conta configurada)
-          api.youtube.schedules(accountId)
-            .then(data => setYoutubeSchedules(data.filter(s => s.status === 'pending')))
-            .catch(() => {});
+          if (accountId) {
+            setFolderYoutubeAccountId(accountId);
+            // Só verifica conflito se sabemos exatamente qual canal será usado
+            api.youtube.schedules(accountId)
+              .then(data => setYoutubeSchedules(data.filter(s => s.status === 'pending')))
+              .catch(() => {});
+          }
         }
       }).catch(() => {});
-    } else {
-      // Projeto sem pasta: carrega todos os schedules para checar conflitos
-      api.youtube.schedules()
-        .then(data => setYoutubeSchedules(data.filter(s => s.status === 'pending')))
-        .catch(() => {});
     }
   }, [project.projectId, project.folderId]);
 
@@ -175,8 +172,6 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
         && d.getMonth() === selected.getMonth()
         && d.getDate() === selected.getDate();
     });
-    const exactMatch = sameDay.find(s => new Date(s.scheduled_at).getTime() === selectedMs);
-    if (exactMatch) return { type: 'error' as const, schedules: sameDay };
     if (sameDay.length > 0) return { type: 'warning' as const, schedules: sameDay };
     return null;
   };
@@ -385,7 +380,7 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
                 
                 <button
                   onClick={handlePublishYouTube}
-                  disabled={isPublishing || youtubeConflict?.type === 'error'}
+                  disabled={isPublishing}
                   className="w-full sm:w-auto btn-primary py-5 px-12 rounded-[1.5rem] bg-red-600 hover:bg-red-500 border-red-500/50 shadow-2xl shadow-red-600/30 text-base disabled:opacity-40"
                 >
                   {isPublishing ? <Loader2 className="w-6 h-6 animate-spin" /> : <Rocket className="w-6 h-6" />}
@@ -567,28 +562,24 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
   );
 }
 
-function ScheduleConflictAlert({ conflict, label }: { conflict: { type: 'error' | 'warning'; schedules: any[] } | null; label?: string }) {
+function ScheduleConflictAlert({ conflict, label }: { conflict: { type: 'warning'; schedules: any[] } | null; label?: string }) {
   if (!conflict) return null;
 
-  const isError = conflict.type === 'error';
-  const times = conflict.schedules.map(s =>
-    new Date(s.scheduled_at).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  );
-  const prefix = label ? `[${label}] ` : '';
+  const entries = conflict.schedules.map(s => {
+    const time = new Date(s.scheduled_at).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const channel = s.youtube_accounts?.channel_name ?? s.instagram_username ?? label ?? '';
+    return channel ? `${channel} às ${time}` : `às ${time}`;
+  });
 
   return (
     <motion.div
       initial={{ opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`flex items-start gap-2 px-4 py-3 rounded-xl border text-xs font-medium leading-snug max-w-xs ${isError ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}
+      className="flex items-start gap-2 px-4 py-3 rounded-xl border bg-amber-500/10 border-amber-500/20 text-amber-400 text-xs font-medium leading-snug max-w-xs"
     >
-      {isError
-        ? <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-        : <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />}
+      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
       <span>
-        {isError
-          ? `${prefix}Já existe um agendamento para este horário exato neste canal. Escolha outro horário.`
-          : `${prefix}Já há ${conflict.schedules.length} vídeo${conflict.schedules.length > 1 ? 's' : ''} agendado${conflict.schedules.length > 1 ? 's' : ''} para este dia neste canal (${times.join(', ')}).`}
+        Atenção: já há {conflict.schedules.length} vídeo{conflict.schedules.length > 1 ? 's' : ''} agendado{conflict.schedules.length > 1 ? 's' : ''} neste dia — {entries.join(', ')}.
       </span>
     </motion.div>
   );

@@ -124,20 +124,6 @@ router.post('/upload', authMiddleware, async (req, res) => {
         if (folder?.youtube_account_id)
             youtubeAccountId = folder.youtube_account_id;
     }
-    // Bloqueia agendamento duplicado no mesmo canal e horário
-    if (scheduledAt && youtubeAccountId) {
-        const scheduledMs = new Date(scheduledAt).getTime();
-        const { data: conflicts } = await supabase
-            .from('youtube_schedules')
-            .select('id')
-            .eq('youtube_account_id', youtubeAccountId)
-            .eq('status', 'pending')
-            .gte('scheduled_at', new Date(scheduledMs - 60000).toISOString())
-            .lte('scheduled_at', new Date(scheduledMs + 60000).toISOString());
-        if (conflicts && conflicts.length > 0) {
-            return res.status(409).json({ error: 'Já existe um vídeo agendado para este horário neste canal. Escolha outro horário.' });
-        }
-    }
     try {
         const youtubeUrl = await uploadToYouTube(metadata.video_url, metadata.video_title, metadata.description, metadata.hashtags ?? [], language, folderTags, scheduledAt, youtubeAccountId, userId);
         // Extrai o video ID da URL (youtube.com/shorts/VIDEO_ID)
@@ -182,7 +168,17 @@ router.get('/schedules', authMiddleware, async (req, res) => {
         const { data, error } = await query;
         if (error)
             throw new Error(error.message);
-        res.json(data ?? []);
+        const schedules = data ?? [];
+        const projectIds = schedules.map((s) => s.project_id).filter(Boolean);
+        const videoUrlMap = {};
+        if (projectIds.length > 0) {
+            const { data: metas } = await getSupabase()
+                .from('export_metadata')
+                .select('project_id, video_url')
+                .in('project_id', projectIds);
+            (metas ?? []).forEach((m) => { if (m.video_url) videoUrlMap[m.project_id] = m.video_url; });
+        }
+        res.json(schedules.map((s) => ({ ...s, video_url: videoUrlMap[s.project_id] ?? null })));
     }
     catch (err) {
         res.status(500).json({ error: err instanceof Error ? err.message : 'Erro' });

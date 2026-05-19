@@ -134,21 +134,6 @@ router.post('/upload', authMiddleware, async (req: any, res) => {
     if (folder?.youtube_account_id) youtubeAccountId = folder.youtube_account_id;
   }
 
-  // Bloqueia agendamento duplicado no mesmo canal e horário
-  if (scheduledAt && youtubeAccountId) {
-    const scheduledMs = new Date(scheduledAt).getTime();
-    const { data: conflicts } = await supabase
-      .from('youtube_schedules')
-      .select('id')
-      .eq('youtube_account_id', youtubeAccountId)
-      .eq('status', 'pending')
-      .gte('scheduled_at', new Date(scheduledMs - 60000).toISOString())
-      .lte('scheduled_at', new Date(scheduledMs + 60000).toISOString());
-    if (conflicts && conflicts.length > 0) {
-      return res.status(409).json({ error: 'Já existe um vídeo agendado para este horário neste canal. Escolha outro horário.' });
-    }
-  }
-
   try {
     const youtubeUrl = await uploadToYouTube(
       metadata.video_url,
@@ -207,7 +192,20 @@ router.get('/schedules', authMiddleware, async (req: any, res) => {
     if (account_id) query = query.eq('youtube_account_id', account_id as string);
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    res.json(data ?? []);
+    const schedules = data ?? [];
+
+    // Busca video_url de export_metadata pelos project_ids
+    const projectIds = schedules.map((s: any) => s.project_id).filter(Boolean);
+    const videoUrlMap: Record<string, string> = {};
+    if (projectIds.length > 0) {
+      const { data: metas } = await getSupabase()
+        .from('export_metadata')
+        .select('project_id, video_url')
+        .in('project_id', projectIds);
+      (metas ?? []).forEach((m: any) => { if (m.video_url) videoUrlMap[m.project_id] = m.video_url; });
+    }
+
+    res.json(schedules.map((s: any) => ({ ...s, video_url: videoUrlMap[s.project_id] ?? null })));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Erro' });
   }

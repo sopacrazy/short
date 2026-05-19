@@ -94,6 +94,7 @@ export interface YouTubeSchedule {
   scheduled_at: string;
   youtube_video_id: string | null;
   youtube_url: string | null;
+  video_url: string | null;
   status: string;
   created_at: string;
   youtube_accounts?: { channel_name: string | null; channel_id: string | null };
@@ -180,9 +181,9 @@ async function request<T>(path: string, options?: RequestInit & { timeout?: numb
     });
     clearTimeout(timeoutId);
 
-    const data = await res.json();
+    const data = res.status === 204 ? null : await res.json();
     if (!res.ok) {
-      throw new Error((data as { error?: string }).error ?? `Erro ${res.status}`);
+      throw new Error((data as { error?: string })?.error ?? `Erro ${res.status}`);
     }
     return data as T;
   } catch (err: any) {
@@ -374,7 +375,7 @@ export const api = {
         body: JSON.stringify(updates),
       }),
     delete: (id: string) =>
-      fetch(`${API_BASE}/folders/${id}`, { method: 'DELETE' }),
+      request(`/folders/${id}`, { method: 'DELETE' }),
   },
 
   topics: {

@@ -9,6 +9,7 @@ import {
   Loader2,
   ChevronRight,
   Upload,
+  Copy,
   Folder,
   Globe,
   Clapperboard,
@@ -346,6 +347,26 @@ export default function Step3Production({ project: projectCtx, onNext, onBack }:
                         <p className="text-[10px] text-gray-700 italic">🇧🇷 Traduzindo...</p>
                       )}
                     </div>
+
+                    {/* Image Prompt */}
+                    {scene.image_prompt && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-[10px] font-bold text-gray-600 uppercase tracking-[0.2em]">
+                            <ImageIcon className="w-3.5 h-3.5" /> Prompt da Imagem
+                          </div>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(scene.image_prompt)}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 text-[10px] font-bold text-gray-500 hover:text-white hover:bg-white/10 transition-all uppercase tracking-widest"
+                          >
+                            <Copy className="w-3 h-3" /> Copiar
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500 leading-relaxed font-mono bg-white/[0.02] border border-white/5 rounded-xl px-4 py-3">
+                          {scene.image_prompt}
+                        </p>
+                      </div>
+                    )}
 
                   </div>
 
