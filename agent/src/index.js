@@ -4,8 +4,6 @@ import 'dotenv/config';
 import { processMessage } from './agent.js';
 import {
   checkPublished,
-  checkEmptySlot,
-  sendPreviewSummary,
   sendDailySummary,
 } from './notifier.js';
 
@@ -43,15 +41,6 @@ cron.schedule('*/2 * * * *', () => checkPublished(bot, CHAT_ID), { timezone: 'Am
 // Resumo diário às 07:00
 cron.schedule('0 7 * * *', () => sendDailySummary(bot, CHAT_ID), { timezone: 'America/Sao_Paulo' });
 
-// Aviso de slot vazio 1h antes (para horários 8h–22h)
-[8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].forEach(hour => {
-  cron.schedule(`0 ${hour - 1} * * *`, () => checkEmptySlot(bot, CHAT_ID, hour), { timezone: 'America/Sao_Paulo' });
-});
-
-// Preview 15 min antes (para horários 8h–22h)
-[8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].forEach(hour => {
-  cron.schedule(`45 ${hour - 1} * * *`, () => sendPreviewSummary(bot, CHAT_ID, hour), { timezone: 'America/Sao_Paulo' });
-});
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 

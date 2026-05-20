@@ -150,27 +150,21 @@ router.post('/upload', authMiddleware, async (req: any, res) => {
     // Extrai o video ID da URL (youtube.com/shorts/VIDEO_ID)
     const videoId = youtubeUrl.split('/').pop() ?? null;
 
-    const saves: Promise<any>[] = [
-      supabase.from('export_metadata').update({ youtube_url: youtubeUrl }).eq('project_id', projectId),
-    ];
+    await supabase.from('export_metadata').update({ youtube_url: youtubeUrl }).eq('project_id', projectId);
 
     // Salva na tabela de agendamentos se foi agendado
     if (scheduledAt && youtubeAccountId) {
-      saves.push(
-        supabase.from('youtube_schedules').insert({
-          project_id: projectId,
-          user_id: userId,
-          youtube_account_id: youtubeAccountId,
-          title: metadata.video_title,
-          scheduled_at: new Date(scheduledAt).toISOString(),
-          youtube_video_id: videoId,
-          youtube_url: youtubeUrl,
-          status: 'pending',
-        })
-      );
+      await supabase.from('youtube_schedules').insert({
+        project_id: projectId,
+        user_id: userId,
+        youtube_account_id: youtubeAccountId,
+        title: metadata.video_title,
+        scheduled_at: new Date(scheduledAt).toISOString(),
+        youtube_video_id: videoId,
+        youtube_url: youtubeUrl,
+        status: 'pending',
+      });
     }
-
-    await Promise.all(saves);
     res.json({ youtube_url: youtubeUrl });
   } catch (err) {
     console.error('[YouTube Upload Error]:', err);
