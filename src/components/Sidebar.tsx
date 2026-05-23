@@ -1,6 +1,6 @@
 import { Home, Video, Settings, X, Quote, Lightbulb, Images, CalendarClock, Youtube, Plus, Trash2 } from 'lucide-react';
 import { AppStep } from '../types';
-import type { YouTubeAccount } from '../lib/api';
+import type { YouTubeAccount, InstagramAccount } from '../lib/api';
 import { motion, AnimatePresence } from 'motion/react';
 import React from 'react';
 
@@ -14,19 +14,20 @@ interface SidebarProps {
   onNavigateSchedules: () => void;
   isOpen: boolean;
   onClose: () => void;
-  integrationsStatus: { ai: boolean; youtube: boolean; instagram: boolean; instagramUsername?: string };
+  integrationsStatus: { ai: boolean; youtube: boolean; instagram: boolean };
   youtubeAccounts: YouTubeAccount[];
+  instagramAccounts: InstagramAccount[];
   onAddYouTubeAccount?: () => void;
   onRemoveYouTubeAccount?: (id: string) => void;
-  onConnectInstagram?: () => void;
-  onDisconnectInstagram?: () => void;
+  onAddInstagramAccount?: () => void;
+  onRemoveInstagramAccount?: (id: string) => void;
 }
 
 export default function Sidebar({
   currentStep, onNavigateHome, onNavigateProjects, onNavigateViralPhrases,
   onNavigateCuriosityPost, onNavigateCuriosityGallery, onNavigateSchedules,
-  isOpen, onClose, integrationsStatus, youtubeAccounts,
-  onAddYouTubeAccount, onRemoveYouTubeAccount, onConnectInstagram, onDisconnectInstagram
+  isOpen, onClose, integrationsStatus, youtubeAccounts, instagramAccounts,
+  onAddYouTubeAccount, onRemoveYouTubeAccount, onAddInstagramAccount, onRemoveInstagramAccount
 }: SidebarProps) {
   const handleNav = (fn?: () => void) => {
     fn?.();
@@ -132,21 +133,45 @@ export default function Sidebar({
               {/* Divisor */}
               <div className="border-t border-white/5" />
 
-              {/* Instagram */}
-              <div className="flex items-center justify-between group/status">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${integrationsStatus.instagram ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500'}`} />
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-xs text-gray-500 group-hover/status:text-gray-300 transition-colors">Instagram</span>
-                    {integrationsStatus.instagram && integrationsStatus.instagramUsername && (
-                      <span className="text-[10px] text-gray-600 truncate">@{integrationsStatus.instagramUsername}</span>
-                    )}
+              {/* Instagram — múltiplas contas */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <InstagramIcon className="w-3.5 h-3.5" />
+                    <span className="text-xs text-gray-500">Instagram</span>
                   </div>
+                  <button
+                    onClick={onAddInstagramAccount}
+                    className="flex items-center gap-1 text-[10px] font-bold text-[#00E5FF] hover:brightness-110 transition-all"
+                    title="Adicionar conta Instagram"
+                  >
+                    <Plus className="w-3 h-3" />
+                    ADICIONAR
+                  </button>
                 </div>
-                {integrationsStatus.instagram ? (
-                  <button onClick={onDisconnectInstagram} className="text-[10px] font-bold text-rose-500 hover:brightness-110 transition-all shrink-0 ml-1">DESCONECTAR</button>
+
+                {instagramAccounts.length === 0 ? (
+                  <p className="text-[10px] text-gray-600 pl-1">Nenhuma conta conectada</p>
                 ) : (
-                  <button onClick={onConnectInstagram} className="text-[10px] font-bold text-[#00E5FF] hover:brightness-110 transition-all shrink-0 ml-1">CONECTAR</button>
+                  <div className="space-y-1.5">
+                    {instagramAccounts.map(acc => (
+                      <div key={acc.id} className="flex items-center justify-between group/acc">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] shrink-0" />
+                          <span className="text-[11px] text-gray-400 truncate">
+                            {acc.username ? `@${acc.username}` : 'Conta sem nome'}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => onRemoveInstagramAccount?.(acc.id)}
+                          className="opacity-0 group-hover/acc:opacity-100 p-1 rounded text-gray-600 hover:text-rose-500 transition-all shrink-0 ml-1"
+                          title="Desconectar"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -178,6 +203,23 @@ function ClipaaiLogo({ className = '' }: { className?: string }) {
         <path d="M32 10 L38 17 L32 17Z" fill="white" />
       </g>
       <path d="M16 22 L27 28 L16 34Z" fill="white" />
+    </svg>
+  );
+}
+
+function InstagramIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="url(#ig-grad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <defs>
+        <linearGradient id="ig-grad" x1="0" y1="24" x2="24" y2="0" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#f97316" />
+          <stop offset="0.5" stopColor="#ec4899" />
+          <stop offset="1" stopColor="#a855f7" />
+        </linearGradient>
+      </defs>
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.5" cy="6.5" r="1" fill="url(#ig-grad)" stroke="none" />
     </svg>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Menu, Settings, LogOut, Bell, HelpCircle, Sparkles } from 'lucide-react';
 import { AppStep, type ProjectContext } from './types';
-import type { ApiProject, YouTubeAccount } from './lib/api';
+import type { ApiProject, YouTubeAccount, InstagramAccount } from './lib/api';
 import { api } from './lib/api';
 import type { FolderDefaults } from './types';
 import { supabase } from './lib/supabase';
@@ -39,8 +39,9 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const [pendingFolderDefaults, setPendingFolderDefaults] = useState<FolderDefaults | null>(null);
-  const [integrationsStatus, setIntegrationsStatus] = useState({ ai: false, youtube: false, instagram: false, instagramUsername: '' });
+  const [integrationsStatus, setIntegrationsStatus] = useState({ ai: false, youtube: false, instagram: false });
   const [youtubeAccounts, setYoutubeAccounts] = useState<YouTubeAccount[]>([]);
+  const [instagramAccounts, setInstagramAccounts] = useState<InstagramAccount[]>([]);
 
   // Evita re-checar integrações a cada evento onAuthStateChange (token refresh, etc.)
   const _lastIntegrationCheck = useRef(0);
@@ -76,17 +77,17 @@ export default function App() {
     if (!force && now - _lastIntegrationCheck.current < INTEGRATION_TTL) return;
     _lastIntegrationCheck.current = now;
     try {
-      const [voices, ytAccounts, insta] = await Promise.all([
+      const [voices, ytAccounts, igAccounts] = await Promise.all([
         api.narration.voices(),
         api.youtube.accounts(),
-        api.instagram.status(),
+        api.instagram.accounts(),
       ]);
       setYoutubeAccounts(ytAccounts);
+      setInstagramAccounts(igAccounts);
       setIntegrationsStatus({
         ai: voices.length > 0,
         youtube: ytAccounts.length > 0,
-        instagram: insta.connected,
-        instagramUsername: insta.username ?? '',
+        instagram: igAccounts.length > 0,
       });
     } catch (err) {
       console.error('Erro ao checar integrações:', err);
@@ -123,7 +124,7 @@ export default function App() {
     }
   };
 
-  const handleConnectInstagram = async () => {
+  const handleAddInstagramAccount = async () => {
     try {
       const { url } = await api.instagram.getAuthUrl();
       const popup = window.open(url, 'instagram_oauth', 'width=500,height=750,left=400,top=100');
@@ -132,8 +133,13 @@ export default function App() {
           window.removeEventListener('message', handler);
           popup?.close();
           if (e.data === 'instagram_connected') {
-            checkIntegrations(true);
-            notify('Instagram conectado com sucesso!', 'success');
+            api.instagram.accounts()
+              .then(accs => {
+                setInstagramAccounts(accs);
+                setIntegrationsStatus(prev => ({ ...prev, instagram: accs.length > 0 }));
+              })
+              .catch(() => checkIntegrations(true));
+            notify('Conta Instagram adicionada com sucesso!', 'success');
           } else {
             notify('Erro ao conectar Instagram. Verifique se sua conta tem perfil Business/Creator.', 'error');
           }
@@ -145,13 +151,14 @@ export default function App() {
     }
   };
 
-  const handleDisconnectInstagram = async () => {
+  const handleRemoveInstagramAccount = async (id: string) => {
     try {
-      await api.instagram.disconnect();
-      setIntegrationsStatus(prev => ({ ...prev, instagram: false }));
-      notify('Instagram desconectado.', 'info');
+      await api.instagram.removeAccount(id);
+      setInstagramAccounts(prev => prev.filter(a => a.id !== id));
+      setIntegrationsStatus(prev => ({ ...prev, instagram: instagramAccounts.length > 1 }));
+      notify('Conta Instagram removida.', 'info');
     } catch {
-      notify('Erro ao desconectar Instagram', 'error');
+      notify('Erro ao remover conta Instagram', 'error');
     }
   };
 
@@ -292,10 +299,11 @@ export default function App() {
         onClose={() => setSidebarOpen(false)}
         integrationsStatus={integrationsStatus}
         youtubeAccounts={youtubeAccounts}
+        instagramAccounts={instagramAccounts}
         onAddYouTubeAccount={handleAddYouTubeAccount}
         onRemoveYouTubeAccount={handleRemoveYouTubeAccount}
-        onConnectInstagram={handleConnectInstagram}
-        onDisconnectInstagram={handleDisconnectInstagram}
+        onAddInstagramAccount={handleAddInstagramAccount}
+        onRemoveInstagramAccount={handleRemoveInstagramAccount}
       />
 
       <main className="flex-1 relative overflow-y-auto flex flex-col">

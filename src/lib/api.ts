@@ -84,6 +84,13 @@ export interface YouTubeAccount {
   created_at: string;
 }
 
+export interface InstagramAccount {
+  id: string;
+  username: string | null;
+  instagram_user_id: string;
+  created_at: string;
+}
+
 export interface YouTubeSchedule {
   id: string;
   project_id: string | null;
@@ -446,23 +453,24 @@ export const api = {
   instagram: {
     status: () => request<{ connected: boolean; username?: string }>('/instagram/status'),
     getAuthUrl: () => request<{ url: string }>('/instagram/auth'),
-    disconnect: () => request<{ ok: boolean }>('/instagram/disconnect', { method: 'DELETE' }),
-    upload: (projectId: string, caption?: string) =>
+    accounts: () => request<InstagramAccount[]>('/instagram/accounts'),
+    removeAccount: (id: string) => request<{ ok: boolean }>(`/instagram/accounts/${id}`, { method: 'DELETE' }),
+    upload: (projectId: string, caption?: string, instagram_account_id?: string) =>
       request<{ instagram_url: string }>('/instagram/upload', {
         method: 'POST',
-        body: JSON.stringify({ projectId, caption }),
+        body: JSON.stringify({ projectId, caption, instagram_account_id }),
         timeout: 300000,
       }),
-    uploadPhoto: (imageUrl: string, caption: string) =>
+    uploadPhoto: (imageUrl: string, caption: string, instagram_account_id?: string) =>
       request<{ instagram_url: string }>('/instagram/upload-photo', {
         method: 'POST',
-        body: JSON.stringify({ imageUrl, caption }),
+        body: JSON.stringify({ imageUrl, caption, instagram_account_id }),
         timeout: 60000,
       }),
-    scheduleReel: (projectId: string, caption: string, scheduledAt: string) =>
+    scheduleReel: (projectId: string, caption: string, scheduledAt: string, instagram_account_id?: string) =>
       request<{ ok: boolean; scheduledAt: string }>('/instagram/schedule-reel', {
         method: 'POST',
-        body: JSON.stringify({ projectId, caption, scheduledAt }),
+        body: JSON.stringify({ projectId, caption, scheduledAt, instagram_account_id }),
       }),
     getSchedules: () => request<any[]>('/instagram/schedules'),
     deleteSchedule: (id: string) => request<{ ok: boolean }>(`/instagram/schedules/${id}`, { method: 'DELETE' }),

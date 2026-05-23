@@ -44,7 +44,6 @@ export async function exchangeCodeAndStore(code: string, userId: string): Promis
   if (!shortData.access_token) throw new Error(shortData.error_message || shortData.error?.message || 'Falha ao obter token do Instagram');
 
   const shortToken: string = shortData.access_token;
-  const instagramUserId: string = String(shortData.user_id);
 
   // 2. Troca por token de longa duração (60 dias)
   const longRes = await fetch(
@@ -62,60 +61,104 @@ export async function exchangeCodeAndStore(code: string, userId: string): Promis
   const expiresIn: number = longData.expires_in ?? 60 * 24 * 3600;
   const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
-  // 3. Busca username e ID real via /me (evita erro de precisão de inteiro no user_id do OAuth)
+  // 3. Busca username e ID real via /me
   const profileRes = await fetch(
     `https://graph.instagram.com/${IG_VERSION}/me?fields=id,username,account_type&access_token=${longToken}`
   );
   const profileData = (await profileRes.json()) as any;
   const instagramUsername: string = profileData.username ?? '';
-  const correctUserId: string = profileData.id ?? instagramUserId;
+  const instagramUserId: string = profileData.id ?? String(shortData.user_id);
 
-  // 4. Salva no Supabase
-  const { error } = await getSupabase()
-    .from('instagram_tokens')
-    .upsert({
-      user_id: userId,
-      access_token: longToken,
-      instagram_user_id: correctUserId,
-      username: instagramUsername,
-      expires_at: expiresAt,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' });
+  // 4. Verifica se já existe conta com este instagram_user_id para este usuário
+  const { data: existing } = await getSupabase()
+    .from('instagram_accounts')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('instagram_user_id', instagramUserId)
+    .single();
 
-  if (error) throw new Error(`Erro ao salvar tokens: ${error.message}`);
+  if (existing) {
+    // Atualiza token da conta existente
+    const { error } = await getSupabase()
+      .from('instagram_accounts')
+      .update({
+        access_token: longToken,
+        username: instagramUsername,
+        expires_at: expiresAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id);
+    if (error) throw new Error(`Erro ao atualizar token: ${error.message}`);
+  } else {
+    // Insere nova conta
+    const { error } = await getSupabase()
+      .from('instagram_accounts')
+      .insert({
+        user_id: userId,
+        access_token: longToken,
+        instagram_user_id: instagramUserId,
+        username: instagramUsername,
+        expires_at: expiresAt,
+        updated_at: new Date().toISOString(),
+      });
+    if (error) throw new Error(`Erro ao salvar conta: ${error.message}`);
+  }
+}
+
+export async function getInstagramAccounts(userId: string): Promise<Array<{ id: string; username: string | null; instagram_user_id: string; created_at: string }>> {
+  const { data, error } = await getSupabase()
+    .from('instagram_accounts')
+    .select('id, username, instagram_user_id, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(error.message);
+  return data ?? [];
 }
 
 export async function getInstagramStatus(userId: string): Promise<{ connected: boolean; username?: string }> {
   const { data } = await getSupabase()
-    .from('instagram_tokens')
-    .select('username, expires_at')
+    .from('instagram_accounts')
+    .select('username')
     .eq('user_id', userId)
-    .single();
-  if (!data) return { connected: false };
-  return { connected: true, username: data.username ?? undefined };
+    .order('created_at', { ascending: true })
+    .limit(1);
+  if (!data || data.length === 0) return { connected: false };
+  return { connected: true, username: data[0].username ?? undefined };
 }
 
-export async function disconnect(userId: string): Promise<void> {
-  await getSupabase().from('instagram_tokens').delete().eq('user_id', userId);
+export async function disconnectAccount(accountId: string, userId: string): Promise<void> {
+  await getSupabase()
+    .from('instagram_accounts')
+    .delete()
+    .eq('id', accountId)
+    .eq('user_id', userId);
 }
 
-export async function scheduleReel(userId: string, videoUrl: string, caption: string, scheduledAt: string): Promise<void> {
+export async function scheduleReel(userId: string, videoUrl: string, caption: string, scheduledAt: string, accountId?: string): Promise<void> {
   const { error } = await getSupabase()
     .from('scheduled_reels')
-    .insert({ user_id: userId, video_url: videoUrl, caption, scheduled_at: scheduledAt, status: 'pending' });
+    .insert({
+      user_id: userId,
+      video_url: videoUrl,
+      caption,
+      scheduled_at: scheduledAt,
+      status: 'pending',
+      instagram_account_id: accountId ?? null,
+    });
   if (error) throw new Error(`Erro ao agendar Reel: ${error.message}`);
 }
 
 // ─── Helper interno ───────────────────────────────────────────────────────────
 
-async function getTokenForUser(userId: string): Promise<{ token: string; igUserId: string }> {
+async function getTokenForAccount(accountId: string, userId: string): Promise<{ token: string; igUserId: string }> {
   const { data, error } = await getSupabase()
-    .from('instagram_tokens')
+    .from('instagram_accounts')
     .select('access_token, instagram_user_id, expires_at')
+    .eq('id', accountId)
     .eq('user_id', userId)
     .single();
 
-  if (error || !data) throw new Error('Instagram não conectado. Faça a autenticação primeiro.');
+  if (error || !data) throw new Error('Conta Instagram não encontrada.');
 
   if (data.expires_at) {
     const daysLeft = (new Date(data.expires_at).getTime() - Date.now()) / (1000 * 3600 * 24);
@@ -125,13 +168,29 @@ async function getTokenForUser(userId: string): Promise<{ token: string; igUserI
   return { token: data.access_token, igUserId: data.instagram_user_id };
 }
 
+async function getFirstTokenForUser(userId: string): Promise<{ token: string; igUserId: string }> {
+  const { data, error } = await getSupabase()
+    .from('instagram_accounts')
+    .select('access_token, instagram_user_id, expires_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .single();
+
+  if (error || !data) throw new Error('Instagram não conectado. Faça a autenticação primeiro.');
+
+  return { token: data.access_token, igUserId: data.instagram_user_id };
+}
+
 // ─── Publicação ──────────────────────────────────────────────────────────────
 
-export async function uploadReel(videoUrl: string, caption: string, userId: string): Promise<{ id: string; url: string }> {
-  const { token, igUserId } = await getTokenForUser(userId);
+export async function uploadReel(videoUrl: string, caption: string, userId: string, accountId?: string): Promise<{ id: string; url: string }> {
+  const { token, igUserId } = accountId
+    ? await getTokenForAccount(accountId, userId)
+    : await getFirstTokenForUser(userId);
+
   console.log(`[Instagram] Iniciando upload de Reel. igUserId=${igUserId} videoUrl=${videoUrl}`);
 
-  // Debug: verifica conta e permissões do token
   const meRes = await fetch(`https://graph.instagram.com/${IG_VERSION}/me?fields=id,username,account_type&access_token=${token}`);
   const meData = (await meRes.json()) as any;
   console.log(`[Instagram] Token info:`, JSON.stringify(meData));
@@ -176,8 +235,11 @@ export async function uploadReel(videoUrl: string, caption: string, userId: stri
   return { id: publishData.id, url: `https://www.instagram.com/reels/${publishData.id}/` };
 }
 
-export async function uploadPhoto(imageUrl: string, caption: string, userId: string): Promise<{ id: string; url: string }> {
-  const { token, igUserId } = await getTokenForUser(userId);
+export async function uploadPhoto(imageUrl: string, caption: string, userId: string, accountId?: string): Promise<{ id: string; url: string }> {
+  const { token, igUserId } = accountId
+    ? await getTokenForAccount(accountId, userId)
+    : await getFirstTokenForUser(userId);
+
   console.log(`[Instagram] Postando imagem: ${imageUrl}`);
 
   const containerRes = await fetch(`https://graph.instagram.com/${IG_VERSION}/${igUserId}/media`, {

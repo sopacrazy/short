@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
-import { getAuthUrl, exchangeCodeAndStore, getInstagramStatus, disconnect, uploadReel, uploadPhoto, scheduleReel, } from '../services/instagram.service.js';
+import { getAuthUrl, exchangeCodeAndStore, getInstagramStatus, getInstagramAccounts, disconnectAccount, uploadReel, uploadPhoto, scheduleReel, } from '../services/instagram.service.js';
 import { getSupabase } from '../services/supabase.service.js';
 const router = Router();
 // GET /api/instagram/auth
@@ -52,10 +52,20 @@ router.get('/status', authMiddleware, async (req, res) => {
         res.json({ connected: false });
     }
 });
-// DELETE /api/instagram/disconnect
-router.delete('/disconnect', authMiddleware, async (req, res) => {
+// GET /api/instagram/accounts
+router.get('/accounts', authMiddleware, async (req, res) => {
     try {
-        await disconnect(req.user.id);
+        const accounts = await getInstagramAccounts(req.user.id);
+        res.json(accounts);
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// DELETE /api/instagram/accounts/:id
+router.delete('/accounts/:id', authMiddleware, async (req, res) => {
+    try {
+        await disconnectAccount(req.params.id, req.user.id);
         res.json({ ok: true });
     }
     catch (err) {
@@ -64,7 +74,7 @@ router.delete('/disconnect', authMiddleware, async (req, res) => {
 });
 // POST /api/instagram/upload — publica Reel de um projeto
 router.post('/upload', authMiddleware, async (req, res) => {
-    const { projectId, caption } = req.body;
+    const { projectId, caption, instagram_account_id } = req.body;
     const userId = req.user.id;
     if (!projectId)
         return res.status(400).json({ error: 'projectId é obrigatório' });
@@ -81,7 +91,7 @@ router.post('/upload', authMiddleware, async (req, res) => {
         const storagePath = `videos/${projectId}.mp4`;
         const { data: publicData } = getSupabase().storage.from('videos').getPublicUrl(storagePath);
         const videoUrl = publicData?.publicUrl ?? meta.video_url;
-        const result = await uploadReel(videoUrl, caption || meta.video_title, userId);
+        const result = await uploadReel(videoUrl, caption || meta.video_title, userId, instagram_account_id);
         await supabase
             .from('export_metadata')
             .update({ instagram_url: result.url })
@@ -95,12 +105,12 @@ router.post('/upload', authMiddleware, async (req, res) => {
 });
 // POST /api/instagram/upload-photo
 router.post('/upload-photo', authMiddleware, async (req, res) => {
-    const { imageUrl, caption } = req.body;
+    const { imageUrl, caption, instagram_account_id } = req.body;
     const userId = req.user.id;
     if (!imageUrl)
         return res.status(400).json({ error: 'imageUrl é obrigatório' });
     try {
-        const result = await uploadPhoto(imageUrl, caption ?? '', userId);
+        const result = await uploadPhoto(imageUrl, caption ?? '', userId, instagram_account_id);
         res.json({ instagram_url: result.url });
     }
     catch (err) {
@@ -112,15 +122,18 @@ router.post('/upload-photo', authMiddleware, async (req, res) => {
 router.get('/schedules', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     try {
-        const [schedulesResult, tokenResult] = await Promise.all([
-            getSupabase().from('scheduled_reels').select('*').eq('user_id', userId).order('scheduled_at', { ascending: true }),
-            getSupabase().from('instagram_tokens').select('username').eq('user_id', userId).single(),
-        ]);
-        if (schedulesResult.error)
-            throw schedulesResult.error;
-        const username = tokenResult.data?.username ?? null;
-        const data = (schedulesResult.data ?? []).map(r => ({ ...r, instagram_username: username }));
-        res.json(data);
+        const { data, error } = await getSupabase()
+            .from('scheduled_reels')
+            .select('*, instagram_accounts(username)')
+            .eq('user_id', userId)
+            .order('scheduled_at', { ascending: true });
+        if (error)
+            throw error;
+        const rows = (data ?? []).map((r) => ({
+            ...r,
+            instagram_username: r.instagram_accounts?.username ?? null,
+        }));
+        res.json(rows);
     }
     catch (err) {
         res.status(500).json({ error: err.message });
@@ -165,7 +178,7 @@ router.patch('/schedules/:id', authMiddleware, async (req, res) => {
 });
 // POST /api/instagram/schedule-reel
 router.post('/schedule-reel', authMiddleware, async (req, res) => {
-    const { projectId, caption, scheduledAt } = req.body;
+    const { projectId, caption, scheduledAt, instagram_account_id } = req.body;
     const userId = req.user.id;
     if (!projectId || !scheduledAt)
         return res.status(400).json({ error: 'projectId e scheduledAt são obrigatórios' });
@@ -181,7 +194,7 @@ router.post('/schedule-reel', authMiddleware, async (req, res) => {
         const storagePath = `videos/${projectId}.mp4`;
         const { data: publicData } = supabase.storage.from('videos').getPublicUrl(storagePath);
         const videoUrl = publicData?.publicUrl ?? meta.video_url;
-        await scheduleReel(userId, videoUrl, caption || meta.video_title, scheduledAt);
+        await scheduleReel(userId, videoUrl, caption || meta.video_title, scheduledAt, instagram_account_id);
         res.json({ ok: true, scheduledAt });
     }
     catch (err) {
