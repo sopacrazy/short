@@ -6,16 +6,17 @@ import {
   Clock, Hash, Palette, FolderPlus,
   Share2, ChevronRight, Eye, Mic2, Languages, Zap, CheckCircle, UserCircle
 } from 'lucide-react';
-import { api, type ApiProject, type ApiFolder, type Voice, type YouTubeAccount } from '@/src/lib/api';
+import { api, type ApiProject, type ApiFolder, type Voice, type YouTubeAccount, type InstagramAccount } from '@/src/lib/api';
 
 interface ProjectsViewProps {
   onStartProject: (defaults?: any) => void;
   onEditProject: (project: ApiProject) => void;
   onExportProject: (project: ApiProject) => void;
   youtubeAccounts?: YouTubeAccount[];
+  instagramAccounts?: InstagramAccount[];
 }
 
-export default function ProjectsView({ onStartProject, onEditProject, onExportProject, youtubeAccounts = [] }: ProjectsViewProps) {
+export default function ProjectsView({ onStartProject, onEditProject, onExportProject, youtubeAccounts = [], instagramAccounts = [] }: ProjectsViewProps) {
   const [folders, setFolders] = useState<ApiFolder[]>([]);
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
@@ -42,7 +43,8 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
   const [editFolder, setEditFolder] = useState({
     name: '', emoji: '', color: '', voiceId: '', lang: '', tags: '',
     autoPublishYoutube: false, autoPublishInstagram: false,
-    youtubeAccountId: '' as string
+    youtubeAccountId: '' as string,
+    instagramAccountId: '' as string,
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [deleteProject, setDeleteProject] = useState<ApiProject | null>(null);
@@ -92,6 +94,7 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
         auto_publish_youtube: editFolder.autoPublishYoutube,
         auto_publish_instagram: editFolder.autoPublishInstagram,
         youtube_account_id: editFolder.youtubeAccountId || null,
+        instagram_account_id: editFolder.instagramAccountId || null,
       });
       setFolders(prev => prev.map(f => f.id === updated.id ? updated : f));
       setShowFolderSettings(null);
@@ -194,6 +197,7 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
                 autoPublishYoutube: selectedFolder.auto_publish_youtube ?? false,
                 autoPublishInstagram: selectedFolder.auto_publish_instagram ?? false,
                 youtubeAccountId: selectedFolder.youtube_account_id || '',
+                instagramAccountId: selectedFolder.instagram_account_id || '',
               });
               setShowFolderSettings(selectedFolder);
               loadVoicesIfNeeded();
@@ -387,14 +391,38 @@ export default function ProjectsView({ onStartProject, onEditProject, onExportPr
                           </div>
                         </div>
                         <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${editFolder.autoPublishInstagram ? 'bg-pink-500 border-pink-500' : 'border-white/10'}`}>
-                          <input 
-                            type="checkbox" checked={editFolder.autoPublishInstagram} 
+                          <input
+                            type="checkbox" checked={editFolder.autoPublishInstagram}
                             onChange={e => setEditFolder({ ...editFolder, autoPublishInstagram: e.target.checked })}
-                            className="hidden" 
+                            className="hidden"
                           />
                           {editFolder.autoPublishInstagram && <CheckCircle className="w-4 h-4 text-white" />}
                         </div>
                       </label>
+
+                    {/* Seletor de conta Instagram para esta pasta */}
+                    {instagramAccounts.length > 0 && (
+                      <div className="space-y-2 pt-1">
+                        <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-2">
+                          <UserCircle className="w-3 h-3" /> Conta Instagram desta Pasta
+                        </label>
+                        <div className="relative group">
+                          <select
+                            value={editFolder.instagramAccountId}
+                            onChange={e => setEditFolder({ ...editFolder, instagramAccountId: e.target.value })}
+                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-3 text-xs font-bold text-white appearance-none cursor-pointer focus:border-pink-500/50 transition-all outline-none pr-8"
+                          >
+                            <option value="">Nenhuma (não publicar no Instagram)</option>
+                            {instagramAccounts.map(acc => (
+                              <option key={acc.id} value={acc.id}>
+                                {acc.username ? `@${acc.username}` : 'Conta sem nome'}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronRight className="w-3.5 h-3.5 text-gray-500 absolute right-3 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" />
+                        </div>
+                      </div>
+                    )}
                     </div>
                   </div>
                 </div>

@@ -367,7 +367,7 @@ export default function App() {
               <Dashboard onStartProject={startNewProject} onEditProject={handleEditProject} onExportProject={handleExportProject} />
             )}
 
-            {currentStep === AppStep.PROJECTS && <ProjectsView onStartProject={startNewProject} onEditProject={handleEditProject} onExportProject={handleExportProject} youtubeAccounts={youtubeAccounts} />}
+            {currentStep === AppStep.PROJECTS && <ProjectsView onStartProject={startNewProject} onEditProject={handleEditProject} onExportProject={handleExportProject} youtubeAccounts={youtubeAccounts} instagramAccounts={instagramAccounts} />}
             
             {currentStep === AppStep.VIRAL_PHRASES && <ViralPhrases />}
 

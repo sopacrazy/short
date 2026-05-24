@@ -73,6 +73,7 @@ export interface ApiFolder {
   auto_publish_youtube: boolean;
   auto_publish_instagram: boolean;
   youtube_account_id: string | null;
+  instagram_account_id: string | null;
   created_at: string;
 }
 

@@ -24,6 +24,9 @@ CREATE POLICY "Users can manage their own instagram accounts"
 -- Adiciona referência de conta ao scheduled_reels
 ALTER TABLE scheduled_reels ADD COLUMN IF NOT EXISTS instagram_account_id UUID REFERENCES instagram_accounts(id) ON DELETE SET NULL;
 
+-- Adiciona referência de conta Instagram padrão nas pastas
+ALTER TABLE folders ADD COLUMN IF NOT EXISTS instagram_account_id UUID REFERENCES instagram_accounts(id) ON DELETE SET NULL;
+
 -- Migra dados existentes da tabela instagram_tokens → instagram_accounts
 INSERT INTO instagram_accounts (user_id, access_token, instagram_user_id, username, expires_at, created_at, updated_at)
 SELECT user_id, access_token, instagram_user_id, username, expires_at, created_at, updated_at

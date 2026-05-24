@@ -89,31 +89,6 @@ router.post('/', async (req, res) => {
     send({ type: 'completed' });
     res.end();
 });
-// POST /api/projects/:projectId/images/:sceneId — regenerar individual
-router.post('/:sceneId', async (req, res) => {
-    const { projectId, sceneId } = req.params;
-    const userId = req.user.id;
-    const { visual_style = 'cinematic' } = req.body;
-    const { data: project } = await supabase.from('projects').select('id').eq('id', projectId).eq('user_id', userId).single();
-    if (!project)
-        return res.status(403).json({ error: 'Não autorizado' });
-    const { data: scene } = await supabase.from('scenes').select('*').eq('id', sceneId).single();
-    if (!scene)
-        return res.status(404).json({ error: 'Cena não encontrada' });
-    try {
-        const keys = await getUserAIKeys(userId);
-        const tempUrl = await generateWithRetry(scene.image_prompt, visual_style, 4, keys.replicate_token);
-        const finalUrl = await saveToSupabase(tempUrl, projectId, sceneId);
-        const { data: updated } = await supabase.from('scenes').update({ image_url: finalUrl }).eq('id', sceneId).select().single();
-        if (scene.scene_number === 1) {
-            await supabase.from('projects').update({ thumbnail_url: finalUrl }).eq('id', projectId);
-        }
-        return res.json(updated);
-    }
-    catch (err) {
-        return res.status(500).json({ error: String(err) });
-    }
-});
 // POST /api/projects/:projectId/images/:sceneId/upload — substituir imagem por upload manual
 router.post('/:sceneId/upload', async (req, res) => {
     const { projectId, sceneId } = req.params;
@@ -140,6 +115,31 @@ router.post('/:sceneId/upload', async (req, res) => {
         const { data: updated } = await supabase.from('scenes').update({ image_url: publicUrl }).eq('id', sceneId).select().single();
         if (scene.scene_number === 1) {
             await supabase.from('projects').update({ thumbnail_url: publicUrl }).eq('id', projectId);
+        }
+        return res.json(updated);
+    }
+    catch (err) {
+        return res.status(500).json({ error: String(err) });
+    }
+});
+// POST /api/projects/:projectId/images/:sceneId — regenerar individual
+router.post('/:sceneId', async (req, res) => {
+    const { projectId, sceneId } = req.params;
+    const userId = req.user.id;
+    const { visual_style = 'cinematic' } = req.body;
+    const { data: project } = await supabase.from('projects').select('id').eq('id', projectId).eq('user_id', userId).single();
+    if (!project)
+        return res.status(403).json({ error: 'Não autorizado' });
+    const { data: scene } = await supabase.from('scenes').select('*').eq('id', sceneId).single();
+    if (!scene)
+        return res.status(404).json({ error: 'Cena não encontrada' });
+    try {
+        const keys = await getUserAIKeys(userId);
+        const tempUrl = await generateWithRetry(scene.image_prompt, visual_style, 4, keys.replicate_token);
+        const finalUrl = await saveToSupabase(tempUrl, projectId, sceneId);
+        const { data: updated } = await supabase.from('scenes').update({ image_url: finalUrl }).eq('id', sceneId).select().single();
+        if (scene.scene_number === 1) {
+            await supabase.from('projects').update({ thumbnail_url: finalUrl }).eq('id', projectId);
         }
         return res.json(updated);
     }

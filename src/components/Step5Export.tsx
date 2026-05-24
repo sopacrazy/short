@@ -40,6 +40,7 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
   const [instagramSchedules, setInstagramSchedules] = useState<any[]>([]);
   const [youtubeSchedules, setYoutubeSchedules] = useState<YouTubeSchedule[]>([]);
   const [folderYoutubeAccountId, setFolderYoutubeAccountId] = useState<string | null>(null);
+  const [folderInstagramAccountId, setFolderInstagramAccountId] = useState<string | null>(null);
 
   useEffect(() => {
     api.projects.get(project.projectId).then(data => {
@@ -69,6 +70,7 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
         const folder = folders.find(f => f.id === project.folderId);
         if (folder) {
           setFolderConfig({ yt: folder.auto_publish_youtube, insta: folder.auto_publish_instagram });
+          if (folder.instagram_account_id) setFolderInstagramAccountId(folder.instagram_account_id);
           const accountId = folder.youtube_account_id ?? undefined;
           if (accountId) {
             setFolderYoutubeAccountId(accountId);
@@ -124,7 +126,7 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
       setIsPublishingInsta(true);
       setInstaError(null);
       try {
-        await api.instagram.scheduleReel(project.projectId, metadata?.video_title ?? '', new Date(scheduledAt).toISOString());
+        await api.instagram.scheduleReel(project.projectId, metadata?.video_title ?? '', new Date(scheduledAt).toISOString(), folderInstagramAccountId ?? undefined);
         setReelScheduled(true);
       } catch (err: any) {
         setInstaError(err.message || 'Erro ao agendar Reel');
@@ -138,7 +140,8 @@ export default function Step5Export({ project, onFinish, onBack }: Step5ExportPr
     try {
       const { instagram_url } = await api.instagram.upload(
         project.projectId,
-        metadata?.video_title
+        metadata?.video_title,
+        folderInstagramAccountId ?? undefined
       );
       setInstagramUrl(instagram_url);
       setInstaSuccess(true);

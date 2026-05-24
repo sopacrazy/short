@@ -128,12 +128,10 @@ router.post('/upload', authMiddleware, async (req, res) => {
         const youtubeUrl = await uploadToYouTube(metadata.video_url, metadata.video_title, metadata.description, metadata.hashtags ?? [], language, folderTags, scheduledAt, youtubeAccountId, userId);
         // Extrai o video ID da URL (youtube.com/shorts/VIDEO_ID)
         const videoId = youtubeUrl.split('/').pop() ?? null;
-        const saves = [
-            supabase.from('export_metadata').update({ youtube_url: youtubeUrl }).eq('project_id', projectId),
-        ];
+        await supabase.from('export_metadata').update({ youtube_url: youtubeUrl }).eq('project_id', projectId);
         // Salva na tabela de agendamentos se foi agendado
         if (scheduledAt && youtubeAccountId) {
-            saves.push(supabase.from('youtube_schedules').insert({
+            await supabase.from('youtube_schedules').insert({
                 project_id: projectId,
                 user_id: userId,
                 youtube_account_id: youtubeAccountId,
@@ -142,9 +140,8 @@ router.post('/upload', authMiddleware, async (req, res) => {
                 youtube_video_id: videoId,
                 youtube_url: youtubeUrl,
                 status: 'pending',
-            }));
+            });
         }
-        await Promise.all(saves);
         res.json({ youtube_url: youtubeUrl });
     }
     catch (err) {
@@ -169,6 +166,7 @@ router.get('/schedules', authMiddleware, async (req, res) => {
         if (error)
             throw new Error(error.message);
         const schedules = data ?? [];
+        // Busca video_url de export_metadata pelos project_ids
         const projectIds = schedules.map((s) => s.project_id).filter(Boolean);
         const videoUrlMap = {};
         if (projectIds.length > 0) {
@@ -176,7 +174,8 @@ router.get('/schedules', authMiddleware, async (req, res) => {
                 .from('export_metadata')
                 .select('project_id, video_url')
                 .in('project_id', projectIds);
-            (metas ?? []).forEach((m) => { if (m.video_url) videoUrlMap[m.project_id] = m.video_url; });
+            (metas ?? []).forEach((m) => { if (m.video_url)
+                videoUrlMap[m.project_id] = m.video_url; });
         }
         res.json(schedules.map((s) => ({ ...s, video_url: videoUrlMap[s.project_id] ?? null })));
     }

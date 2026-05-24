@@ -1,24 +1,50 @@
-import OpenAI from 'openai';
-const MODEL = 'gpt-4o';
+import OpenAI from "openai";
+const MODEL = "gpt-4o";
 const LANGUAGE_NAMES = {
-    'pt': 'Português (Brasil)',
-    'pt-PT': 'Português (Portugal)',
-    'en': 'English',
-    'es': 'Español',
-    'fr': 'Français',
-    'de': 'Deutsch',
-    'it': 'Italiano',
-    'ja': '日本語',
-    'ko': '한국어',
-    'zh': '中文',
-    'ar': 'العربية',
+    pt: "Português (Brasil)",
+    "pt-PT": "Português (Portugal)",
+    en: "English",
+    es: "Español",
+    fr: "Français",
+    de: "Deutsch",
+    it: "Italiano",
+    ja: "日本語",
+    ko: "한국어",
+    zh: "中文",
+    ar: "العربية",
 };
-export async function generateScript(topic, niche = 'curiosidades', durationTarget = 45, voiceTone = 'dramático e envolvente', narrationSpeed = 'moderado', previousHook, previousTitle, language = 'pt', apiKey) {
+// Mapa de nicho → estilo visual padrão para o Flux
+const NICHE_VISUAL_STYLE = {
+    natureza: "wildlife",
+    animais: "wildlife",
+    história: "historical",
+    ciência: "documentary",
+    curiosidades: "documentary",
+    mistério: "cinematic",
+    tecnologia: "cinematic",
+    saúde: "documentary",
+    ficção: "cinematic",
+};
+export async function generateScript(topic, niche = "curiosidades", durationTarget = 45, voiceTone = "dramático e envolvente", narrationSpeed = "moderado", previousHook, previousTitle, language = "pt", apiKey, 
+// ─── NOVO parâmetro ───────────────────────────────────────────────────────
+contentType = "real") {
     if (!apiKey)
-        throw new Error('Configuração ausente: OpenAI API Key não encontrada para este usuário.');
+        throw new Error("Configuração ausente: OpenAI API Key não encontrada para este usuário.");
     const client = new OpenAI({ apiKey });
     const variationSeed = Math.floor(Math.random() * 999999);
-    const HOOK_TYPES = [
+    // Hooks para conteúdo REAL: sem 1ª pessoa, sem "estou no local", tom documental
+    const HOOK_TYPES_REAL = [
+        'pergunta retórica que desafia o espectador (ex: "Você sabia que isso realmente aconteceu?")',
+        'fato chocante com número específico (ex: "95% das pessoas não sabe que...")',
+        'afirmação controversa e polêmica (ex: "X que você conhece é uma mentira")',
+        'revelação de segredo exclusivo (ex: "O que a história oficial esconde sobre...")',
+        'desafio direto ao espectador (ex: "Aposto que você não sabia disso sobre...")',
+        'dado real impactante com contexto (ex: "Em [ano], algo aconteceu que mudou tudo sobre [tema]...")',
+        'comparação surpreendente entre realidade e senso comum (ex: "Todo mundo pensa X, mas a ciência prova Y")',
+        'abertura com o desfecho mais chocante do evento (ex: "Em [data], [sujeito] [fez X] — e ninguém acreditou")',
+    ];
+    // Hooks para FICÇÃO: pode usar 1ª pessoa, imersão total, cenários imaginativos
+    const HOOK_TYPES_FICTION = [
         'pergunta retórica que desafia o espectador (ex: "Você está fazendo X errado?")',
         'fato chocante com número específico (ex: "95% das pessoas não sabe que...")',
         'afirmação controversa e polêmica (ex: "X que você conhece é uma mentira")',
@@ -28,18 +54,84 @@ export async function generateScript(topic, niche = 'curiosidades', durationTarg
         'desafio direto ao espectador (ex: "Aposto que você não sabia disso sobre...")',
         'história pessoal em 1ª pessoa no presente (ex: "Estou olhando para X e não consigo acreditar...")',
     ];
+    const HOOK_TYPES = contentType === "real" ? HOOK_TYPES_REAL : HOOK_TYPES_FICTION;
     const hookType = HOOK_TYPES[variationSeed % HOOK_TYPES.length];
-    let avoidBlock = '';
+    let avoidBlock = "";
     if (previousHook || previousTitle) {
         const hookList = previousHook
-            ? previousHook.split(' | ').map((h, i) => `  ${i + 1}. "${h.trim()}"`).join('\n')
-            : '';
-        avoidBlock = `\n\n🚫 GANCHOS JÁ USADOS — PROIBIDO repetir qualquer um destes ou variações similares:\n${hookList}\n${previousTitle ? `Último título: "${previousTitle}"\n` : ''}→ Use um ÂNGULO COMPLETAMENTE DIFERENTE.`;
+            ? previousHook
+                .split(" | ")
+                .map((h, i) => `  ${i + 1}. "${h.trim()}"`)
+                .join("\n")
+            : "";
+        avoidBlock = `\n\n🚫 GANCHOS JÁ USADOS — PROIBIDO repetir qualquer um destes ou variações similares:\n${hookList}\n${previousTitle ? `Último título: "${previousTitle}"\n` : ""}→ Use um ÂNGULO COMPLETAMENTE DIFERENTE.`;
     }
     const langName = LANGUAGE_NAMES[language] ?? language;
-    const langInstruction = language === 'pt'
-        ? ''
+    const langInstruction = language === "pt"
+        ? ""
         : `\n🌐 IDIOMA OBRIGATÓRIO: Gere TODO o texto (title, hook, body, cta, narration_text, description, hashtags) em **${langName}**. EXCEÇÃO: image_prompt SEMPRE em inglês.\n`;
+    // ─── NOVO: bloco de instrução adaptado ao tipo de conteúdo ────────────────
+    const contentTypeBlock = contentType === "real"
+        ? `
+═══ TIPO DE CONTEÚDO: HISTÓRIA / FATO REAL ═══
+
+Este vídeo trata de um evento, fato ou ser documentado do mundo real.
+REGRAS DE FIDELIDADE OBRIGATÓRIAS para o roteiro e os image_prompts:
+
+1. PRECISÃO FACTUAL: Narre apenas o que é verificável. Não invente detalhes, datas ou números. Se não souber um detalhe exato, omita — nunca fabrique.
+
+2. ANCORAGEM GEOGRÁFICA E HISTÓRICA: Se o tema envolve um lugar real (ex: Oceano Índico, Rio de Janeiro, Chernobyl), cite o nome real no roteiro E no image_prompt. Se envolve um evento real (ex: naufrágio do Titanic, erupção do Vesúvio), descreva o cenário real daquele momento histórico.
+
+3. ANIMAIS — FIDELIDADE ZOOLÓGICA ABSOLUTA:
+   • Sempre use o nome científico entre parênteses no image_prompt.
+   • Descreva a aparência REAL da espécie: coloração exata, morfologia, tamanho proporcional.
+   • NUNCA interprete o nome popular de forma literal ou criativa.
+   • Exemplos CORRETOS:
+     - "tiger shark" → "a tiger shark (Galeocerdo cuvier), grey-brown torpedo-shaped body with faint dark vertical stripes along the flanks, blunt snout, large pectoral fins, swimming in open blue ocean water"
+     - "mantis shrimp" → "a mantis shrimp (Odontodactylus scyllarus), vivid multicolored crustacean with peacock-like iridescent greens, blues and reds, compound eyes, on coral reef substrate"
+     - "blue-ringed octopus" → "a blue-ringed octopus (Hapalochlaena lunulata), small tan-brown octopus with glowing iridescent blue rings on skin, sitting on rocky seafloor"
+   • Exemplos PROIBIDOS: "shark with tiger stripes and orange fur", "shrimp shaped like a mantis insect"
+   • Adicione sempre: "wildlife documentary photography, BBC Earth / National Geographic style"
+
+4. PESSOAS REAIS E HISTÓRICAS:
+   • NUNCA peça o rosto de uma pessoa específica — modelos de imagem não conseguem reproduzir fielmente.
+   • Descreva o contexto: época, vestuário, postura, ambiente. Ex: "a naval officer in early 20th century British military uniform, standing on the deck of a large steam ship, stern expression, overcast Atlantic sky"
+   • Para personagens históricos: "a figure in [época] [nacionalidade] attire, [contexto da cena], [iluminação]"
+
+5. VOZ DA NARRAÇÃO — DOCUMENTÁRIO, NUNCA 1ª PESSOA:
+   • O roteiro é narrado em 3ª pessoa, como um documentário ou jornalismo — NUNCA como se o narrador estivesse presente na cena.
+   • PROIBIDO: "Estou olhando para...", "Estou aqui no local...", "Vejo à minha frente...", "Estou dentro do submarino..."
+   • CORRETO: "Em [ano], [sujeito] [verbo]...", "O que aconteceu foi...", "Os registros mostram que...", "A [data], [local], [evento]..."
+   • O narrador é onisciente e distante — conta o fato, não o vive.
+
+6. ESTILO VISUAL PARA CONTEÚDO REAL:
+   • Use: "RAW photo", "photojournalism", "historical documentary photography", "archival footage aesthetic"
+   • Para natureza: "wildlife documentary, BBC Earth, shot on Canon EOS R5 600mm telephoto"
+   • Para história: "period-accurate reconstruction, historical documentary style, muted tones"
+   • Para ciência/tecnologia: "scientific photography, National Geographic editorial style"
+   • NUNCA use "cinematic CGI", "digital art", "illustration" para conteúdo real.
+`
+        : `
+═══ TIPO DE CONTEÚDO: FICÇÃO / FANTASIA ═══
+
+Este vídeo trata de conteúdo fictício, especulativo ou de entretenimento criativo.
+REGRAS PARA FICÇÃO:
+• Estilo visual pode ser cinematográfico, CGI ou ilustrativo conforme o tema pede.
+• Criatividade e dramatismo visuais são bem-vindos.
+• Ainda proibido: "close-up de olhos genérico", "pessoa olhando para câmera" sem contexto.
+• Seja específico na cena: o que está acontecendo, onde, com quem/o quê.
+`;
+    // ─── NOVO: âncora visual unificada — garante coerência entre todas as cenas ─
+    const visualAnchorBlock = `
+═══ ÂNCORA VISUAL DO VÍDEO (OBRIGATÓRIO) ═══
+
+Antes de escrever qualquer image_prompt, defina UMA linha de estilo visual que será aplicada a TODAS as cenas:
+  "visual_style_anchor": "[câmera/lente] [paleta de luz] [mood geral]"
+  Exemplo: "Sony A7IV 35mm f/1.8, warm golden hour tones, naturalistic shallow depth of field"
+  Exemplo: "Canon EOS R5 600mm telephoto, blue-hour overcast light, wildlife documentary mood"
+
+Aplique exatamente esse estilo em todos os image_prompts. O espectador deve sentir que todas as imagens pertencem ao mesmo vídeo.
+`;
     const prompt = `Você é um especialista em criação de conteúdo viral para YouTube Shorts, TikTok e Instagram Reels.
 ${langInstruction}
 IMPORTANTE: Gere um roteiro 100% ORIGINAL e ÚNICO.
@@ -47,7 +139,8 @@ Seed de variação: #${variationSeed}
 Tipo de gancho obrigatório desta versão: ${hookType}${avoidBlock}
 
 TEMA: "${topic}" | Nicho: ${niche} | Duração: ${durationTarget}s | Tom: ${voiceTone} | Velocidade: ${narrationSpeed}
-
+${contentTypeBlock}
+${visualAnchorBlock}
 ═══ FILOSOFIA OBRIGATÓRIA — LEIA COM ATENÇÃO ═══
 
 O vídeo deve ENTREGAR A CURIOSIDADE COMPLETA dentro dos ${durationTarget} segundos.
@@ -69,17 +162,22 @@ PASSO 1 — Escreva o roteiro completo como narração contínua:
 PASSO 2 — Divida essa narração em 4 a 6 segmentos sequenciais. Cada segmento = uma cena.
   • Os segmentos juntos devem formar o roteiro completo sem cortes ou repetições.
   • Cada cena de desenvolvimento (não gancho, não CTA) deve ter 1 a 3 frases diretas.
-PASSO 3 — Para cada segmento, crie um image_prompt em inglês que ilustre EXATAMENTE o fato/momento sendo narrado naquele trecho.
+PASSO 3 — Para cada segmento, crie um image_prompt em inglês que ilustre EXATAMENTE o fato/momento sendo narrado naquele trecho. Aplique o visual_style_anchor definido acima em todas as cenas.
 
 ═══ REGRAS DO IMAGE_PROMPT ═══
 • Sempre em inglês
-• Fotorrealismo: "RAW photo", "DSLR photo", "photojournalism" — NÃO arte digital ou CGI
-• Especifique câmera/lente: "shot on Canon EOS R5 85mm f/1.4", "Sony A7IV 35mm f/1.8"
-• Iluminação natural: "golden hour light", "natural window light", "overcast daylight"
+• ${contentType === "real"
+        ? 'Fotorrealismo OBRIGATÓRIO: "RAW photo", "DSLR photo", "photojournalism", "documentary photography" — NUNCA arte digital, CGI ou ilustração'
+        : "Estilo visual coerente com o tema: fotorrealismo, CGI cinematográfico ou ilustração conforme o que servir melhor à cena"}
+• Especifique câmera/lente: "shot on Canon EOS R5 85mm f/1.4", "Sony A7IV 35mm f/1.8", "600mm telephoto" (para fauna/natureza)
+• Iluminação natural e coerente com o visual_style_anchor: "golden hour light", "natural window light", "overcast daylight", "blue hour"
 • A imagem deve mostrar EXATAMENTE o sujeito narrado — se fala de polvo gigante, mostre polvo; se fala de submarino, mostre submarino; se fala de cientista, mostre cientista no ato
-• NUNCA gere "close-up de olhos", "pessoa olhando para a câmera" ou metáforas abstratas — sempre o objeto/animal/lugar/evento real
-• Cena 1 (gancho): close dramático, composição impactante — a imagem mais forte de todas
-• Última cena (CTA): NÃO ilustre a frase do CTA; mostre o TEMA CENTRAL do vídeo em seu momento mais dramático
+• NUNCA gere "close-up de olhos", "pessoa olhando para a câmera" sem contexto dramático ou metáforas abstratas — sempre o objeto/animal/lugar/evento real
+• ANIMAIS: obrigatoriamente nome científico + morfologia real + "wildlife documentary style" (ver regras acima)
+• PESSOAS REAIS: descreva contexto, época e ambiente — nunca peça um rosto específico (ver regras acima)
+• LUGARES REAIS: cite o nome real do local quando for relevante para a história
+• Cena 1 (gancho): a imagem mais impactante do tema — preferencialmente o objeto/lugar/animal/evento real em seu momento mais dramático (wide shot, close-up ou detalhe, conforme o que for mais revelador para ESSE tema específico)
+• Última cena (CTA): reutilize o mesmo enquadramento/tema da cena mais forte do vídeo — NÃO crie uma imagem nova para o CTA, mostre o TEMA CENTRAL em seu momento mais memorável
 • Termine com: "photorealistic, hyperdetailed, no AI artifacts, no illustration, no CGI, vertical 9:16 portrait"
 
 Responda EXCLUSIVAMENTE com JSON puro (sem markdown).`;
@@ -87,7 +185,7 @@ Responda EXCLUSIVAMENTE com JSON puro (sem markdown).`;
         model: MODEL,
         messages: [
             {
-                role: 'system',
+                role: "system",
                 content: `Você é um roteirista especializado em vídeos curtos e virais (Shorts/TikTok/Reels).
 Sua missão é criar roteiros que ENTREGAM a curiosidade completa dentro do vídeo — sem cliffhangers, sem "descubra inscrevendo-se" antes da revelação.
 
@@ -102,11 +200,29 @@ REGRAS PARA O ROTEIRO:
 - A última cena é um CTA breve (3-5s) de "Curta e siga" — sem prometer revelar algo depois.
 - Cada cena deve ter:
   1. "description": texto exato da narração daquela cena (direto, sem rodeios).
-  2. "image_prompt": prompt visual detalhado em inglês para gerar imagem fotorrealista.
+  2. "image_prompt": prompt visual detalhado em inglês para gerar imagem fotorrealista. DEVE incluir o visual_style_anchor definido no início do JSON.
   3. "duration_seconds": duração estimada em segundos (3 a 10s por cena).
+
+REGRA CRÍTICA — ANIMAIS NO IMAGE_PROMPT:
+Quando qualquer cena envolver um animal, o image_prompt DEVE:
+1. Incluir o nome científico entre parênteses
+2. Descrever exatamente como o animal É na natureza (cor real, tamanho, morfologia)
+3. NUNCA interpretar o nome popular de forma literal ou criativa
+4. Incluir "wildlife documentary, BBC Earth / National Geographic photography style"
+Exemplos obrigatórios:
+  - "tiger shark" → "a tiger shark (Galeocerdo cuvier), grey-brown body with faint dark stripes along flanks, blunt snout, swimming in open ocean, wildlife documentary style"
+  - "mantis shrimp" → "a mantis shrimp (Odontodactylus scyllarus), vivid iridescent crustacean with compound eyes, on coral reef"
+  - "flying fox" → "a large fruit bat (Pteropus vampyrus) hanging from a tree branch, dark brown fur, leathery wings folded, tropical forest canopy"
+
+REGRA CRÍTICA — PESSOAS REAIS NO IMAGE_PROMPT:
+NUNCA peça o rosto de uma pessoa nomeada específica — descreva somente época, vestuário e contexto ambiental.
+
+REGRA CRÍTICA — CONSISTÊNCIA VISUAL:
+O campo "visual_style_anchor" no JSON deve ser definido UMA VEZ e aplicado em TODOS os image_prompts das cenas. Todas as cenas devem parecer do mesmo vídeo: mesma câmera/lente, mesma paleta de luz, mesmo mood.
 
 O retorno DEVE ser EXCLUSIVAMENTE um JSON válido no seguinte formato:
 {
+  "visual_style_anchor": "Sony A7IV 35mm f/1.8, warm golden tones, naturalistic shallow DOF",
   "script": {
     "title": "Título Curioso",
     "hook": "Frase de impacto inicial",
@@ -124,29 +240,34 @@ O retorno DEVE ser EXCLUSIVAMENTE um JSON válido no seguinte formato:
     { "scene_number": 1, "description": "...", "image_prompt": "...", "duration_seconds": 5 },
     ...
   ]
-}`
+}`,
             },
-            { role: 'user', content: prompt }
+            { role: "user", content: prompt },
         ],
-        temperature: 1.0,
-        response_format: { type: 'json_object' },
+        // ─── NOVO: temperature reduzida para conteúdo real — menos alucinações ──
+        temperature: contentType === "real" ? 0.75 : 1.0,
+        response_format: { type: "json_object" },
     });
     const raw = JSON.parse(response.choices[0].message.content);
     const scriptData = raw.script || raw;
     const metaData = raw.metadata || raw;
     // Palavras por segundo por velocidade de narração (português ElevenLabs)
-    const WPS = { lento: 2.2, moderado: 2.7, rápido: 3.3 };
+    const WPS = {
+        lento: 2.2,
+        moderado: 2.7,
+        rápido: 3.3,
+    };
     const wps = WPS[narrationSpeed] ?? 2.7;
     const scenes = raw.scenes.map((s, i) => {
-        const narrationText = String(s.description || s.narration_text || '');
+        const narrationText = String(s.description || s.narration_text || "");
         const wordCount = narrationText.trim().split(/\s+/).filter(Boolean).length;
         // Duração calculada do texto narrado — mínimo 3s, máximo 15s por cena
         const duration = Math.min(15, Math.max(3, Math.round(wordCount / wps)));
         return {
-            id: '',
-            project_id: '',
+            id: "",
+            project_id: "",
             scene_number: Number(s.scene_number ?? i + 1),
-            description: narrationText, // usa narration_text como description para referência
+            description: narrationText,
             image_prompt: String(s.image_prompt),
             image_url: null,
             duration_seconds: duration,
@@ -157,14 +278,14 @@ O retorno DEVE ser EXCLUSIVAMENTE um JSON válido no seguinte formato:
     const totalCalc = scenes.reduce((sum, s) => sum + s.duration_seconds, 0);
     if (totalCalc > 0) {
         const factor = durationTarget / totalCalc;
-        scenes.forEach(s => {
+        scenes.forEach((s) => {
             s.duration_seconds = Math.max(3, Math.round(s.duration_seconds * factor));
         });
     }
     return {
         script: {
-            id: '',
-            project_id: '',
+            id: "",
+            project_id: "",
             title: scriptData.title,
             hook: scriptData.hook,
             body: scriptData.body,
@@ -182,18 +303,19 @@ O retorno DEVE ser EXCLUSIVAMENTE um JSON válido no seguinte formato:
         },
     };
 }
-export async function regenerateScript(topic, _previousTitle, niche = 'curiosidades', apiKey) {
-    return generateScript(topic, niche, 45, 'dramático e envolvente', 'moderado', undefined, undefined, 'pt', apiKey);
+export async function regenerateScript(topic, _previousTitle, niche = "curiosidades", apiKey, contentType = "real") {
+    return generateScript(topic, niche, 45, "dramático e envolvente", "moderado", undefined, undefined, "pt", apiKey, contentType);
 }
 export async function generateThemeSuggestions(query, count = 5, apiKey) {
     if (!apiKey)
-        throw new Error('Configuração ausente: OpenAI API Key não encontrada para este usuário.');
+        throw new Error("Configuração ausente: OpenAI API Key não encontrada para este usuário.");
     const client = new OpenAI({ apiKey });
     const seed = Math.floor(Math.random() * 99999);
     const response = await client.chat.completions.create({
         model: MODEL,
-        messages: [{
-                role: 'user',
+        messages: [
+            {
+                role: "user",
                 content: `Gere exatamente ${count} ideias DIFERENTES e ESPECÍFICAS de vídeos virais para YouTube Shorts sobre: "${query}".
 Seed de variação: #${seed}
 
@@ -211,73 +333,94 @@ Campos:
 - emoji: 1 emoji relevante ao conteúdo
 - niche: uma das categorias: curiosidades, ciência, mistério, natureza, história, tecnologia, saúde
 - hook: frase mais impactante do vídeo (1 linha)`,
-            }],
+            },
+        ],
         temperature: 1.0,
-        response_format: { type: 'json_object' },
+        response_format: { type: "json_object" },
     });
     const raw = JSON.parse(response.choices[0].message.content);
     return raw.themes.slice(0, count);
 }
-export async function generateThumbnailPrompt(title, niche, hook, apiKey) {
+export async function generateThumbnailPrompt(title, niche, hook, apiKey, 
+// ─── NOVO: herda contentType para aplicar as mesmas regras de fidelidade ──
+contentType = "real") {
     if (!apiKey)
-        throw new Error('Configuração ausente: OpenAI API Key não encontrada para este usuário.');
+        throw new Error("Configuração ausente: OpenAI API Key não encontrada para este usuário.");
     const client = new OpenAI({ apiKey });
+    // Determina estilo visual pelo nicho
+    const visualStyle = NICHE_VISUAL_STYLE[niche] ?? "documentary";
+    const fidelityRules = contentType === "real"
+        ? `FIDELITY RULES (this is real/factual content — strictly follow):
+- If the subject is an animal: include scientific name in parentheses, describe real morphology and coloration, add "wildlife documentary style, BBC Earth / National Geographic photography"
+- If the subject involves a real place: name it explicitly in the prompt
+- If historical figures are involved: describe era, clothing, setting — never request a specific named face
+- Visual style must be: photojournalism, documentary photography, archival — NEVER CGI or digital art
+- Style hint for this niche (${niche}): ${visualStyle}`
+        : `STYLE RULES (fictional/creative content):
+- Cinematic and dramatic visuals are encouraged
+- CGI and creative compositions are allowed
+- Stay specific to the scene — no generic abstract imagery`;
     const response = await client.chat.completions.create({
         model: MODEL,
-        messages: [{
-                role: 'user',
+        messages: [
+            {
+                role: "user",
                 content: `You are an expert at writing Flux image generation prompts for YouTube Shorts thumbnails.
 
 Create ONE detailed image prompt for a vertical thumbnail (9:16) for this video:
 - Title: "${title}"
 - Niche: ${niche}
 - Hook: "${hook}"
+- Content type: ${contentType}
 
-Rules:
-- Photorealistic DSLR photo, specify camera and lens
-- The most dramatic/shocking visual moment related to the topic
-- High contrast, vibrant colors, cinematic composition
-- The main subject must fill the frame and be unmistakably about the topic
+${fidelityRules}
+
+General rules:
+- Photorealistic DSLR photo, specify camera and lens appropriate for the niche
+- The single most dramatic/shocking visual moment directly related to the REAL subject of this video
+- The main subject must fill the frame and be unmistakably identifiable
 - No text, no UI elements, no watermarks
-- Dramatic natural or studio lighting
+- Natural lighting matching the subject's real environment
 - Ultra-sharp, hyperdetailed
+- End with: "photorealistic, hyperdetailed, no AI artifacts, vertical 9:16 portrait"
 
 Reply with ONLY the image prompt — no explanations, no markdown.`,
-            }],
-        temperature: 0.8,
-        max_tokens: 180,
+            },
+        ],
+        temperature: contentType === "real" ? 0.7 : 0.85,
+        max_tokens: 220,
     });
     return response.choices[0].message.content?.trim() ?? title;
 }
 export async function generateTopicSuggestions(niche, apiKey) {
     if (!apiKey)
-        throw new Error('Configuração ausente: OpenAI API Key não encontrada para este usuário.');
+        throw new Error("Configuração ausente: OpenAI API Key não encontrada para este usuário.");
     const client = new OpenAI({ apiKey });
     const response = await client.chat.completions.create({
         model: MODEL,
         messages: [
             {
-                role: 'user',
+                role: "user",
                 content: `Sugira 6 ideias de temas virais para YouTube Shorts no nicho de "${niche}".
 Responda apenas com JSON: { "suggestions": ["tema 1", "tema 2", ...] }`,
             },
         ],
         temperature: 0.9,
-        response_format: { type: 'json_object' },
+        response_format: { type: "json_object" },
     });
     const raw = JSON.parse(response.choices[0].message.content);
     return raw.suggestions;
 }
 export async function generateViralPhrase(query, apiKey, category) {
     if (!apiKey)
-        throw new Error('Configuração ausente: OpenAI API Key não encontrada para este usuário.');
+        throw new Error("Configuração ausente: OpenAI API Key não encontrada para este usuário.");
     const client = new OpenAI({ apiKey });
-    if (category === 'taescrito') {
+    if (category === "taescrito") {
         const response = await client.chat.completions.create({
             model: MODEL,
             messages: [
                 {
-                    role: 'system',
+                    role: "system",
                     content: `Você é o criador do @taescrito.ai — conta de Instagram brasileira que viraliza com frases que todo mundo pensa mas ninguém fala. Tom: vizinho de bairro que fala a verdade na cara dura.
 
 IDENTIDADE:
@@ -357,10 +500,13 @@ REGRAS DO CAPTION:
 
 REGRA CRÍTICA: "prompt" é APENAS visual para IA de imagem. Sem texto. Cenas brasileiras urbanas/noturnas, bar, rua molhada, luz de neon, cinematográfico.`,
                 },
-                { role: 'user', content: `Tema: ${query}. Gere uma frase CURTA (máx 2 linhas, máx 20 palavras) no estilo @taescrito.ai. Simples, direta e impactante como "Tá foda, mas estou de pé." NÃO seja genérico. Seja específico e cortante.` },
+                {
+                    role: "user",
+                    content: `Tema: ${query}. Gere uma frase CURTA (máx 2 linhas, máx 20 palavras) no estilo @taescrito.ai. Simples, direta e impactante como "Tá foda, mas estou de pé." NÃO seja genérico. Seja específico e cortante.`,
+                },
             ],
             temperature: 0.95,
-            response_format: { type: 'json_object' },
+            response_format: { type: "json_object" },
         });
         return JSON.parse(response.choices[0].message.content);
     }
@@ -368,7 +514,7 @@ REGRA CRÍTICA: "prompt" é APENAS visual para IA de imagem. Sem texto. Cenas br
         model: MODEL,
         messages: [
             {
-                role: 'system',
+                role: "system",
                 content: `Você é uma IA especializada em criar posts virais para redes sociais.
 O usuário irá informar uma categoria, tema ou sentimento, e você deve criar automaticamente uma composição profissional para Instagram, TikTok, Facebook, Pinterest e Shorts.
 
@@ -402,32 +548,34 @@ Responda EXCLUSIVAMENTE com JSON puro:
 REGRAS CRÍTICAS DE CAMPOS:
 - 'prompt': Deve ser APENAS a descrição visual para a IA de imagem (Flux). NÃO mencione textos, frases, fontes ou degradês no prompt. A imagem deve ser "limpa" para que possamos colocar o texto por cima.
 - 'referencia': Deve ser curto (ex: 'Salmos 37:5', 'Marcus Aurelius', 'Sabedoria Antiga').
-- 'palavra_chave': Apenas UMA palavra principal para destaque máximo.`
+- 'palavra_chave': Apenas UMA palavra principal para destaque máximo.`,
             },
-            { role: 'user', content: query }
+            { role: "user", content: query },
         ],
         temperature: 1.0,
-        response_format: { type: 'json_object' },
+        response_format: { type: "json_object" },
     });
     return JSON.parse(response.choices[0].message.content);
 }
-export async function translateTexts(texts, targetLang = 'Português (Brasil)', apiKey) {
+export async function translateTexts(texts, targetLang = "Português (Brasil)", apiKey) {
     const key = apiKey || process.env.OPENAI_API_KEY;
     if (!key)
-        throw new Error('OpenAI API Key não configurada');
+        throw new Error("OpenAI API Key não configurada");
     const client = new OpenAI({ apiKey: key });
-    const numbered = texts.map((t, i) => `${i + 1}. ${t}`).join('\n');
+    const numbered = texts.map((t, i) => `${i + 1}. ${t}`).join("\n");
     const response = await client.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: "gpt-4o-mini",
         messages: [
             {
-                role: 'system',
+                role: "system",
                 content: `Você é um tradutor. Traduza cada linha numerada para ${targetLang}. Retorne SOMENTE as linhas numeradas traduzidas, no mesmo formato, sem explicações.`,
             },
-            { role: 'user', content: numbered },
+            { role: "user", content: numbered },
         ],
         temperature: 0.3,
     });
-    const lines = (response.choices[0].message.content ?? '').split('\n').filter(l => l.trim());
-    return lines.map(l => l.replace(/^\d+\.\s*/, '').trim());
+    const lines = (response.choices[0].message.content ?? "")
+        .split("\n")
+        .filter((l) => l.trim());
+    return lines.map((l) => l.replace(/^\d+\.\s*/, "").trim());
 }
