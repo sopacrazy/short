@@ -94,16 +94,26 @@ async function getAuthenticatedClient(accountId) {
     });
     // Renova token se expirar nos próximos 5 minutos
     if (data.expiry_date && Date.now() > Number(data.expiry_date) - 5 * 60 * 1000) {
-        const { credentials } = await client.refreshAccessToken();
-        await getSupabase()
-            .from('youtube_accounts')
-            .update({
-            access_token: credentials.access_token,
-            expiry_date: credentials.expiry_date ?? null,
-            updated_at: new Date().toISOString(),
-        })
-            .eq('id', accountId);
-        client.setCredentials(credentials);
+        try {
+            const { credentials } = await client.refreshAccessToken();
+            await getSupabase()
+                .from('youtube_accounts')
+                .update({
+                access_token: credentials.access_token,
+                expiry_date: credentials.expiry_date ?? null,
+                updated_at: new Date().toISOString(),
+            })
+                .eq('id', accountId);
+            client.setCredentials(credentials);
+        }
+        catch (err) {
+            const isInvalidGrant = err?.message?.includes('invalid_grant') || err?.response?.data?.error === 'invalid_grant';
+            if (isInvalidGrant) {
+                const channelName = data.channel_name ?? 'YouTube';
+                throw new Error(`Token da conta "${channelName}" expirou ou foi revogado. Desconecte e reconecte a conta no menu lateral.`);
+            }
+            throw err;
+        }
     }
     return client;
 }
